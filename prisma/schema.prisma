@@ -1,0 +1,296 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  password    String?
+  role        Role     @default(STUDENT)
+  avatar      String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  courses     Course[] @relation("TrainerCourses")
+  enrollments Enrollment[]
+  progress    Progress[]
+  reviews     Review[]
+  payments    Payment[]
+  quizAttempts QuizAttempt[]
+
+  @@map("users")
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  price       Float    @default(0)
+  thumbnail   String?
+  status      CourseStatus @default(DRAFT)
+  level       DifficultyLevel @default(BEGINNER)
+  language    String   @default("en")
+  categoryId  String?
+  trainerId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  trainer     User     @relation("TrainerCourses", fields: [trainerId], references: [id])
+  category    Category? @relation(fields: [categoryId], references: [id])
+  lessons     Lesson[]
+  enrollments Enrollment[]
+  reviews     Review[]
+  chapters    Chapter[]
+  payments    Payment[]
+
+  @@map("courses")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  courses     Course[]
+
+  @@map("categories")
+}
+
+model Chapter {
+  id        String   @id @default(cuid())
+  title     String
+  order     Int
+  courseId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons   Lesson[]
+
+  @@map("chapters")
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  videoUrl    String?
+  duration    Int?     // in seconds
+  content     String?  // text content
+  order       Int
+  chapterId   String
+  courseId    String
+  isPreview   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress    Progress[]
+  quiz        Quiz?
+
+  @@map("lessons")
+}
+
+model Quiz {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  passingScore Int     @default(70) // percentage
+  lessonId    String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions   Question[]
+  attempts    QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  question    String
+  type        QuestionType @default(MULTIPLE_CHOICE)
+  options     String? // JSON array of options
+  correctAnswer String // JSON string with correct answer(s)
+  points      Int      @default(1)
+  quizId      String
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers     QuizAnswer[]
+
+  @@map("questions")
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  score     Float
+  maxScore  Float
+  passed    Boolean
+  studentId String
+  quizId    String
+  startedAt DateTime @default(now())
+  completedAt DateTime?
+
+  // Relations
+  student   User     @relation(fields: [studentId], references: [id])
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  answers   QuizAnswer[]
+
+  @@map("quiz_attempts")
+}
+
+model QuizAnswer {
+  id         String   @id @default(cuid())
+  answer     String   // JSON string with student's answer
+  isCorrect  Boolean
+  points     Int
+  attemptId  String
+  questionId String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  attempt    QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question   Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_answers")
+}
+
+model Enrollment {
+  id          String   @id @default(cuid())
+  studentId   String
+  courseId    String
+  status      EnrollmentStatus @default(ACTIVE)
+  progress    Float    @default(0) // percentage
+  enrolledAt  DateTime @default(now())
+  completedAt DateTime?
+
+  // Relations
+  student     User     @relation(fields: [studentId], references: [id])
+  course      Course   @relation(fields: [courseId], references: [id])
+  lessonProgress Progress[]
+  payments    Payment[]
+
+  @@unique([studentId, courseId])
+  @@map("enrollments")
+}
+
+model Progress {
+  id         String   @id @default(cuid())
+  studentId  String
+  lessonId   String
+  enrollmentId String?
+  watchTime  Int      @default(0) // in seconds
+  completed  Boolean  @default(false)
+  lastPosition Int?   // video position in seconds
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  student    User     @relation(fields: [studentId], references: [id])
+  lesson     Lesson   @relation(fields: [lessonId], references: [id])
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id])
+
+  @@unique([studentId, lessonId])
+  @@map("progress")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int
+  comment   String?
+  studentId String
+  courseId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  student   User     @relation(fields: [studentId], references: [id])
+  course    Course   @relation(fields: [courseId], references: [id])
+
+  @@unique([studentId, courseId])
+  @@map("reviews")
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  amount        Float
+  currency      String   @default("USD")
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String?
+  transactionId String?
+  studentId     String
+  courseId      String?
+  enrollmentId  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  student       User       @relation(fields: [studentId], references: [id])
+  course        Course?    @relation(fields: [courseId], references: [id])
+  enrollment    Enrollment? @relation(fields: [enrollmentId], references: [id])
+
+  @@map("payments")
+}
+
+// Enums
+enum Role {
+  STUDENT
+  TRAINER
+  ADMIN
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MULTIPLE_ANSWER
+  TRUE_FALSE
+  TEXT
+}
