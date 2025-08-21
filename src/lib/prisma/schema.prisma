@@ -1,0 +1,261 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String?
+  email       String   @unique
+  password    String?
+  role        Role     @default(STUDENT)
+  avatar      String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  courses     Course[] @relation("TrainerCourses")
+  enrollments Enrollment[]
+  progress    Progress[]
+  reviews     Review[]
+  answers     Answer[]
+  payments    Payment[]
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  price       Float    @default(0)
+  thumbnail   String?
+  category    String?
+  level       Level    @default(BEGINNER)
+  language    String   @default("en")
+  status      Status   @default(DRAFT)
+  publishedAt DateTime?
+  trainerId   String
+  learningOutcomes String? // Added for course learning outcomes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  trainer     User     @relation("TrainerCourses", fields: [trainerId], references: [id])
+  lessons     Lesson[]
+  enrollments Enrollment[]
+  reviews     Review[]
+  categories  CourseCategory[]
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  content     String?
+  videoUrl    String?
+  duration    Int?
+  order       Int
+  courseId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress    Progress[]
+  quiz        Quiz?
+  resources   Resource[]
+}
+
+model Quiz {
+  id          String   @id @default(cuid())
+  title       String
+  passingScore Int     @default(70)
+  lessonId    String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions   Question[]
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  content     String
+  type        QuestionType @default(MULTIPLE_CHOICE)
+  options     String?
+  correctAnswer String
+  points      Int      @default(1)
+  quizId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers     Answer[]
+}
+
+model Answer {
+  id          String   @id @default(cuid())
+  answer      String
+  isCorrect   Boolean
+  points      Int      @default(0)
+  questionId  String
+  studentId   String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Enrollment {
+  id          String   @id @default(cuid())
+  studentId   String
+  courseId    String
+  progress    Float    @default(0)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+}
+
+model Progress {
+  id          String   @id @default(cuid())
+  studentId   String
+  lessonId    String
+  watchTime   Int      @default(0)
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, lessonId])
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  rating      Int
+  comment     String?
+  studentId   String
+  courseId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  courses     CourseCategory[]
+}
+
+model CourseCategory {
+  courseId    String
+  categoryId  String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, categoryId])
+}
+
+model Resource {
+  id          String   @id @default(cuid())
+  name        String
+  type        ResourceType
+  url         String?
+  lessonId    String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  amount      Float
+  currency    String   @default("USD")
+  status      PaymentStatus @default(PENDING)
+  studentId   String
+  courseId    String
+  stripeId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// Enums
+enum Role {
+  STUDENT
+  TRAINER
+  ADMIN
+}
+
+enum Level {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum Status {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MULTIPLE_ANSWER
+  TRUE_FALSE
+  TEXT
+}
+
+enum ResourceType {
+  PDF
+  VIDEO
+  IMAGE
+  CODE
+  LINK
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
