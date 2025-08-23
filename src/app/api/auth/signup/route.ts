@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { PrismaClient } from "@prisma/client"
+import { 
+  generateTokens, 
+  hashPassword, 
+  cookieConfig,
+  validateAuthEnvironment 
+} from "@/lib/jwt"
+
+const prisma = new PrismaClient()
 
 // Validation schema
 const signupSchema = z.object({
@@ -15,20 +24,20 @@ const signupSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Validate environment variables
+    validateAuthEnvironment()
+    
     const body = await request.json()
     
     // Validate input
     const validatedData = signupSchema.parse(body)
     
-    // In a real application, you would:
-    // 1. Check if the user already exists
-    // 2. Hash the password (using bcrypt or similar)
-    // 3. Create the user in the database
-    // 4. Generate a JWT token
-    // 5. Send a welcome email
-    
-    // Mock user creation logic
-    const existingUser = false // In real app, check database
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email: validatedData.email
+      }
+    })
     
     if (existingUser) {
       return NextResponse.json(
@@ -37,26 +46,56 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    // Create new user
-    const newUser = {
-      id: Date.now().toString(),
-      name: validatedData.name,
-      email: validatedData.email,
-      role: "STUDENT",
-      createdAt: new Date().toISOString()
-    }
+    // Hash password using bcrypt
+    const hashedPassword = await hashPassword(validatedData.password)
     
-    // In a real app, you would generate and return a JWT token here
-    const token = "mock-jwt-token-" + newUser.id
+    // Create new user in database
+    const newUser = await prisma.user.create({
+      data: {
+        name: validatedData.name,
+        email: validatedData.email,
+        password: hashedPassword,
+        role: "STUDENT"
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatar: true,
+        createdAt: true
+      }
+    })
     
-    return NextResponse.json({
+    // Generate JWT tokens
+    const { accessToken, refreshToken } = await generateTokens({
+      userId: newUser.id,
+      email: newUser.email,
+      role: newUser.role
+    })
+    
+    // Create response with secure cookies
+    const response = NextResponse.json({
       success: true,
       message: "Account created successfully",
       data: {
         user: newUser,
-        token
+        accessToken // Also send in response for immediate use
       }
     })
+    
+    // Set secure HTTP-only cookies
+    response.cookies.set('auth-token', accessToken, {
+      ...cookieConfig,
+      maxAge: 60 * 60 // 1 hour for access token
+    })
+    
+    response.cookies.set('refresh-token', refreshToken, {
+      ...cookieConfig,
+      maxAge: 60 * 60 * 24 * 7 // 7 days for refresh token
+    })
+    
+    return response
     
   } catch (error) {
     if (error instanceof z.ZodError) {

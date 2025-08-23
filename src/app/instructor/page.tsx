@@ -1,11 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { 
   Select, 
   SelectContent, 
@@ -26,58 +29,96 @@ import {
   Eye,
   MessageSquare,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  LogOut,
+  User,
+  Settings
 } from "lucide-react"
 
 export default function InstructorDashboard() {
+  const router = useRouter()
   const [timeRange, setTimeRange] = useState("30d")
   const [selectedCourse, setSelectedCourse] = useState("all")
+  const [user, setUser] = useState<any>(null)
+  const [courses, setCourses] = useState<any[]>([])
+  const [stats, setStats] = useState<any>({})
+  const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
 
-  // Mock instructor data
-  const instructorStats = {
-    totalStudents: 2847,
-    totalCourses: 8,
-    totalRevenue: 45680,
-    averageRating: 4.7,
-    monthlyRevenue: 3840,
-    completionRate: 68
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    // Get user from localStorage
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      setUser(JSON.parse(storedUser))
+    }
+  }, [])
+
+  useEffect(() => {
+    const fetchInstructorData = async () => {
+      if (!user?.id) return
+
+      try {
+        const response = await fetch(`/api/instructor/courses?instructorId=${user.id}`)
+        if (response.ok) {
+          const data = await response.json()
+          setCourses(data.data.courses)
+          setStats(data.data.stats)
+        } else {
+          console.error('Failed to fetch instructor data')
+        }
+      } catch (error) {
+        console.error('Error fetching instructor data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchInstructorData()
+  }, [user])
+
+  const handleLogout = async () => {
+    console.log('Instructor logout clicked')
+    try {
+      // Clear local storage immediately
+      localStorage.removeItem('user')
+      localStorage.removeItem('token')
+      
+      // Call logout API (optional, for server-side cleanup)
+      fetch('/api/auth/logout', {
+        method: 'POST',
+      }).catch(err => console.log('Logout API error:', err))
+      
+      // Redirect to home page immediately
+      window.location.href = '/'
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if there's an error, still redirect
+      window.location.href = '/'
+    }
   }
 
-  const courses = [
-    {
-      id: "1",
-      title: "Complete Web Development Bootcamp",
-      students: 1542,
-      revenue: 12360,
-      rating: 4.8,
-      completionRate: 72,
-      status: "published",
-      lastUpdated: "2024-11-01",
-      thumbnail: "/api/placeholder/200/120"
-    },
-    {
-      id: "2",
-      title: "Advanced React and Redux",
-      students: 892,
-      revenue: 8920,
-      rating: 4.6,
-      completionRate: 65,
-      status: "published",
-      lastUpdated: "2024-10-28",
-      thumbnail: "/api/placeholder/200/120"
-    },
-    {
-      id: "3",
-      title: "Python for Data Analysis",
-      students: 413,
-      revenue: 5782,
-      rating: 4.9,
-      completionRate: 78,
-      status: "published",
-      lastUpdated: "2024-10-25",
-      thumbnail: "/api/placeholder/200/120"
-    }
-  ]
+  // Use real data from API, fallback to defaults for display
+  const instructorStats = {
+    totalStudents: stats.totalStudents || 0,
+    totalCourses: stats.totalCourses || 0,
+    totalRevenue: stats.totalRevenue || 0,
+    averageRating: stats.averageRating || 0,
+    monthlyRevenue: Math.round((stats.totalRevenue || 0) / 12), // Rough monthly estimate
+    completionRate: stats.completionRate || 0
+  }
+
+  // Consistent number formatting function
+  const formatNumber = (num: number) => {
+    if (!mounted) return num.toString() // Prevent hydration mismatch
+    return new Intl.NumberFormat('en-US').format(num)
+  }
+
+  // courses is now loaded from API via useState
 
   const revenueData = [
     { month: "Jan", revenue: 2800 },
@@ -157,6 +198,17 @@ export default function InstructorDashboard() {
     }
   ]
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -175,8 +227,54 @@ export default function InstructorDashboard() {
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline">View Profile</Button>
-              <Button>Log Out</Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                    <Avatar>
+                      <AvatarImage src={user?.avatar} />
+                      <AvatarFallback className="bg-blue-100 text-blue-600">
+                        {user?.name?.split(' ').map((n: string) => n[0]).join('') || 'I'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{user?.name}</p>
+                      <p className="w-[200px] truncate text-sm text-muted-foreground">
+                        {user?.email}
+                      </p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      router.push('/profile')
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      handleLogout()
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -201,7 +299,7 @@ export default function InstructorDashboard() {
                 <SelectItem value="1y">Last year</SelectItem>
               </SelectContent>
             </Select>
-            <Button>
+            <Button onClick={() => router.push('/instructor/create-course')}>
               <Plus className="h-4 w-4 mr-2" />
               New Course
             </Button>
@@ -215,7 +313,7 @@ export default function InstructorDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Students</p>
-                  <p className="text-2xl font-bold">{instructorStats.totalStudents.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">{formatNumber(instructorStats.totalStudents)}</p>
                   <p className="text-xs text-green-600 flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +12% from last month
@@ -231,7 +329,7 @@ export default function InstructorDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
-                  <p className="text-2xl font-bold">${instructorStats.totalRevenue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">${formatNumber(instructorStats.totalRevenue)}</p>
                   <p className="text-xs text-green-600 flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +8% from last month
@@ -303,7 +401,7 @@ export default function InstructorDashboard() {
                       ))}
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">${instructorStats.monthlyRevenue.toLocaleString()}</p>
+                      <p className="text-2xl font-bold">${formatNumber(instructorStats.monthlyRevenue)}</p>
                       <p className="text-sm text-muted-foreground">This month</p>
                     </div>
                   </div>
@@ -395,7 +493,7 @@ export default function InstructorDashboard() {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="flex items-center space-x-1">
                           <Users className="h-4 w-4 text-muted-foreground" />
-                          <span>{course.students.toLocaleString()}</span>
+                          <span>{formatNumber(course.students)}</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 text-yellow-600" />
@@ -403,7 +501,7 @@ export default function InstructorDashboard() {
                         </div>
                         <div className="flex items-center space-x-1">
                           <DollarSign className="h-4 w-4 text-green-600" />
-                          <span>${course.revenue.toLocaleString()}</span>
+                          <span>${formatNumber(course.revenue)}</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <BarChart3 className="h-4 w-4 text-blue-600" />

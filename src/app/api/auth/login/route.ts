@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { PrismaClient } from "@prisma/client"
+import { 
+  generateTokens, 
+  comparePassword, 
+  cookieConfig,
+  validateAuthEnvironment 
+} from "@/lib/jwt"
+
+const prisma = new PrismaClient()
 
 // Validation schema
 const loginSchema = z.object({
@@ -9,62 +18,79 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Validate environment variables
+    validateAuthEnvironment()
+    
     const body = await request.json()
     
     // Validate input
     const validatedData = loginSchema.parse(body)
     
-    // In a real application, you would:
-    // 1. Check if the user exists in the database
-    // 2. Verify the password (using bcrypt or similar)
-    // 3. Generate a JWT token
-    // 4. Return the token and user data
-    
-    // Mock authentication logic
-    const mockUsers = [
-      {
-        id: "1",
-        email: "student@example.com",
-        name: "John Student",
-        role: "STUDENT",
-        avatar: "/api/placeholder/100/100"
+    // Find user in database
+    const user = await prisma.user.findUnique({
+      where: {
+        email: validatedData.email
       },
-      {
-        id: "2",
-        email: "instructor@example.com",
-        name: "Jane Instructor",
-        role: "INSTRUCTOR",
-        avatar: "/api/placeholder/100/100"
-      },
-      {
-        id: "3",
-        email: "admin@example.com",
-        name: "Admin User",
-        role: "ADMIN",
-        avatar: "/api/placeholder/100/100"
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        avatar: true,
+        password: true
       }
-    ]
+    })
     
-    const user = mockUsers.find(u => u.email === validatedData.email)
-    
-    if (!user || validatedData.password !== "password") {
+    // Check if user exists
+    if (!user || !user.password) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       )
     }
     
-    // In a real app, you would generate and return a JWT token here
-    const token = "mock-jwt-token-" + user.id
+    // Verify password using bcrypt
+    const isPasswordValid = await comparePassword(validatedData.password, user.password)
     
-    return NextResponse.json({
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      )
+    }
+    
+    // Remove password from response
+    const { password, ...userWithoutPassword } = user
+    
+    // Generate JWT tokens
+    const { accessToken, refreshToken } = await generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    })
+    
+    // Create response with secure cookies
+    const response = NextResponse.json({
       success: true,
       message: "Login successful",
       data: {
-        user,
-        token
+        user: userWithoutPassword,
+        accessToken // Also send in response for immediate use
       }
     })
+    
+    // Set secure HTTP-only cookies
+    response.cookies.set('auth-token', accessToken, {
+      ...cookieConfig,
+      maxAge: 60 * 60 // 1 hour for access token
+    })
+    
+    response.cookies.set('refresh-token', refreshToken, {
+      ...cookieConfig,
+      maxAge: 60 * 60 * 24 * 7 // 7 days for refresh token
+    })
+    
+    return response
     
   } catch (error) {
     if (error instanceof z.ZodError) {

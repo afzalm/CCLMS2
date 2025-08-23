@@ -1,22 +1,53 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
-import { BookOpen, Eye, EyeOff, Mail, Lock, User } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
+import { 
+  BookOpen, 
+  Eye, 
+  EyeOff, 
+  Mail, 
+  Lock, 
+  User, 
+  Loader2,
+  Chrome,
+  Linkedin
+} from "lucide-react"
 import Link from "next/link"
+import { toast } from "@/hooks/use-toast"
 
-export default function LoginPage() {
+const providerIcons: { [key: string]: any } = {
+  google: Chrome,
+  facebook: Chrome,
+  linkedin: Linkedin
+}
+
+const providerStyles: { [key: string]: string } = {
+  google: "bg-red-500 hover:bg-red-600 text-white",
+  facebook: "bg-blue-600 hover:bg-blue-700 text-white", 
+  linkedin: "bg-blue-700 hover:bg-blue-800 text-white"
+}
+
+export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [providers, setProviders] = useState<any>({})
+  const [activeTab, setActiveTab] = useState("login")
+  const router = useRouter()
+  
   const [loginForm, setLoginForm] = useState({
     email: "",
     password: ""
   })
+  
   const [signupForm, setSignupForm] = useState({
     name: "",
     email: "",
@@ -25,47 +56,261 @@ export default function LoginPage() {
     agreeToTerms: false
   })
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Handle login logic here
-    console.log("Login form:", loginForm)
+  useEffect(() => {
+    const loadProviders = async () => {
+      try {
+        // Load SSO providers from our API instead of NextAuth
+        const response = await fetch('/api/admin/sso-providers')
+        if (response.ok) {
+          const data = await response.json()
+          const enabledProviders = data.providers?.filter((p: any) => p.enabled && p.clientId && p.clientSecret) || []
+          const providersMap = Object.fromEntries(
+            enabledProviders.map((p: any) => [p.name, { id: p.name, name: p.displayName }])
+          )
+          setProviders(providersMap)
+        }
+      } catch (error) {
+        console.error('Failed to load providers:', error)
+      }
+    }
+    
+    loadProviders()
+  }, [])
+
+  const handleSocialSignIn = async (providerId: string) => {
+    try {
+      setLoading(true)
+      // Redirect to NextAuth sign-in with provider
+      window.location.href = `/api/auth/signin/${providerId}?callbackUrl=${encodeURIComponent('/')}`
+    } catch (error) {
+      console.error('Social sign-in error:', error)
+      toast({
+        title: "Authentication Failed",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      })
+      setLoading(false)
+    }
   }
 
-  const handleSignup = (e: React.FormEvent) => {
+  const { login, user } = useAuth()
+
+  const handleCredentialsSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle signup logic here
-    console.log("Signup form:", signupForm)
+    
+    if (!loginForm.email || !loginForm.password) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setLoading(true)
+      const success = await login(loginForm.email, loginForm.password)
+      
+      if (success) {
+        toast({
+          title: "Login Successful",
+          description: "Welcome back!"
+        })
+        
+        // Wait a moment for user state to update
+        setTimeout(() => {
+          // Redirect based on user role
+          const currentUser = user || JSON.parse(localStorage.getItem('user') || '{}')
+          switch (currentUser?.role) {
+            case 'ADMIN':
+              router.push('/admin')
+              break
+            case 'TRAINER':
+              router.push('/instructor')
+              break
+            case 'STUDENT':
+            default:
+              router.push('/learn')
+              break
+          }
+        }, 100)
+      } else {
+        toast({
+          title: "Login Failed",
+          description: "Invalid email or password",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Login error:', error)
+      toast({
+        title: "Login Failed",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!signupForm.name || !signupForm.email || !signupForm.password || !signupForm.confirmPassword) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    if (signupForm.password !== signupForm.confirmPassword) {
+      toast({
+        title: "Validation Error", 
+        description: "Passwords do not match",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    if (!signupForm.agreeToTerms) {
+      toast({
+        title: "Validation Error",
+        description: "You must agree to the terms and conditions",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      setLoading(true)
+      
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: signupForm.name,
+          email: signupForm.email,
+          password: signupForm.password,
+          confirmPassword: signupForm.confirmPassword,
+          agreeToTerms: signupForm.agreeToTerms
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast({
+          title: "Account Created",
+          description: "Welcome to CourseCompass! Please sign in."
+        })
+        
+        setActiveTab('login')
+        setLoginForm(prev => ({ ...prev, email: signupForm.email }))
+        setSignupForm({
+          name: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+          agreeToTerms: false
+        })
+      } else {
+        toast({
+          title: "Signup Failed",
+          description: data.error || "Failed to create account",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Signup error:', error)
+      toast({
+        title: "Signup Failed",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo and Brand */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <BookOpen className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold">CourseCompass</span>
+          <div className="flex items-center justify-center space-x-2 mb-6">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-3 rounded-full">
+              <BookOpen className="h-8 w-8 text-white" />
+            </div>
+            <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              CourseCompass
+            </span>
           </div>
-          <h1 className="text-2xl font-bold">Welcome back</h1>
-          <p className="text-muted-foreground">Sign in to your account to continue learning</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back</h1>
+          <p className="text-muted-foreground mt-2">
+            Continue your learning journey with us
+          </p>
         </div>
 
-        <Card>
-          <Tabs defaultValue="login" className="w-full">
+        <Card className="backdrop-blur-sm bg-white/80 dark:bg-gray-800/80 border-0 shadow-xl">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="login" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+                Sign Up
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
-              <CardHeader>
-                <CardTitle>Sign In</CardTitle>
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Sign in to your account</CardTitle>
                 <CardDescription>
-                  Enter your email and password to access your account
+                  Enter your credentials to access your dashboard
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={handleLogin} className="space-y-4">
+              <CardContent className="space-y-6">
+                {Object.keys(providers).length > 0 && (
+                  <>
+                    <div className="space-y-3">
+                      {Object.values(providers).map((provider: any) => {
+                        const Icon = providerIcons[provider.id] || Chrome
+                        const style = providerStyles[provider.id] || "bg-gray-600 hover:bg-gray-700 text-white"
+                        
+                        return (
+                          <Button
+                            key={provider.id}
+                            variant="outline"
+                            onClick={() => handleSocialSignIn(provider.id)}
+                            disabled={loading}
+                            className={`w-full h-12 ${style} border-0 shadow-md hover:shadow-lg transition-all duration-200`}
+                          >
+                            {loading ? (
+                              <Loader2 className="h-5 w-5 animate-spin mr-3" />
+                            ) : (
+                              <Icon className="h-5 w-5 mr-3" />
+                            )}
+                            Continue with {provider.name}
+                          </Button>
+                        )
+                      })}
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <Separator className="w-full" />
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="bg-background px-4 text-muted-foreground">
+                          Or continue with email
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <form onSubmit={handleCredentialsSignIn} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <div className="relative">
@@ -76,7 +321,7 @@ export default function LoginPage() {
                         placeholder="Enter your email"
                         value={loginForm.email}
                         onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                        className="pl-10"
+                        className="pl-10 h-12"
                         required
                       />
                     </div>
@@ -92,7 +337,7 @@ export default function LoginPage() {
                         placeholder="Enter your password"
                         value={loginForm.password}
                         onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                        className="pl-10 pr-10"
+                        className="pl-10 pr-12 h-12"
                         required
                       />
                       <Button
@@ -102,85 +347,86 @@ export default function LoginPage() {
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                         onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="remember"
-                        checked={rememberMe}
-                        onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                      />
+                      <Checkbox id="remember" />
                       <Label htmlFor="remember" className="text-sm">Remember me</Label>
                     </div>
-                    <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
+                    <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:underline">
                       Forgot password?
                     </Link>
                   </div>
 
-                  <Button type="submit" className="w-full">
-                    Sign In
+                  <Button 
+                    type="submit" 
+                    className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200" 
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Signing In...
+                      </>
+                    ) : (
+                      "Sign In"
+                    )}
                   </Button>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-background px-2 text-muted-foreground">
-                        Or continue with
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button variant="outline" type="button">
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                        <path
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                          fill="#4285F4"
-                        />
-                        <path
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                          fill="#34A853"
-                        />
-                        <path
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                          fill="#FBBC05"
-                        />
-                        <path
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                          fill="#EA4335"
-                        />
-                      </svg>
-                      Google
-                    </Button>
-                    <Button variant="outline" type="button">
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.024-.105-.949-.199-2.403.041-3.439.219-.937 1.219-5.175 1.219-5.175s-.311-.623-.311-1.543c0-1.446.839-2.526 1.885-2.526.888 0 1.318.666 1.318 1.466 0 .893-.568 2.229-.861 3.467-.245 1.04.52 1.888 1.546 1.888 1.856 0 3.283-1.958 3.283-4.789 0-2.503-1.799-4.253-4.37-4.253-2.977 0-4.727 2.234-4.727 4.546 0 .9.347 1.863.781 2.387.085.104.098.195.072.301-.079.329-.254 1.037-.289 1.183-.047.196-.153.238-.353.144-1.314-.612-2.137-2.536-2.137-4.078 0-3.298 2.394-6.325 6.901-6.325 3.628 0 6.44 2.586 6.44 6.043 0 3.607-2.274 6.505-5.431 6.505-1.06 0-2.057-.552-2.396-1.209 0 0-.523 1.992-.65 2.479-.235.9-.871 2.028-1.297 2.717.976.301 2.018.461 3.096.461 6.624 0 11.99-5.367 11.99-11.987C24.007 5.367 18.641.001 12.017.001z" />
-                      </svg>
-                      GitHub
-                    </Button>
-                  </div>
                 </form>
               </CardContent>
             </TabsContent>
 
             <TabsContent value="signup">
-              <CardHeader>
-                <CardTitle>Create Account</CardTitle>
+              <CardHeader className="text-center">
+                <CardTitle className="text-xl">Create your account</CardTitle>
                 <CardDescription>
-                  Join CourseCompass to start your learning journey
+                  Join CourseCompass and start your learning journey
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
+                {Object.keys(providers).length > 0 && (
+                  <>
+                    <div className="space-y-3">
+                      {Object.values(providers).map((provider: any) => {
+                        const Icon = providerIcons[provider.id] || Chrome
+                        const style = providerStyles[provider.id] || "bg-gray-600 hover:bg-gray-700 text-white"
+                        
+                        return (
+                          <Button
+                            key={provider.id}
+                            variant="outline"
+                            onClick={() => handleSocialSignIn(provider.id)}
+                            disabled={loading}
+                            className={`w-full h-12 ${style} border-0 shadow-md hover:shadow-lg transition-all duration-200`}
+                          >
+                            {loading ? (
+                              <Loader2 className="h-5 w-5 animate-spin mr-3" />
+                            ) : (
+                              <Icon className="h-5 w-5 mr-3" />
+                            )}
+                            Sign up with {provider.name}
+                          </Button>
+                        )
+                      })}
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <Separator className="w-full" />
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="bg-background px-4 text-muted-foreground">
+                          Or create account with email
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <form onSubmit={handleSignup} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Full Name</Label>
@@ -192,7 +438,7 @@ export default function LoginPage() {
                         placeholder="Enter your full name"
                         value={signupForm.name}
                         onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
-                        className="pl-10"
+                        className="pl-10 h-12"
                         required
                       />
                     </div>
@@ -208,7 +454,7 @@ export default function LoginPage() {
                         placeholder="Enter your email"
                         value={signupForm.email}
                         onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                        className="pl-10"
+                        className="pl-10 h-12"
                         required
                       />
                     </div>
@@ -224,7 +470,7 @@ export default function LoginPage() {
                         placeholder="Create a password"
                         value={signupForm.password}
                         onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                        className="pl-10 pr-10"
+                        className="pl-10 pr-12 h-12"
                         required
                       />
                       <Button
@@ -234,11 +480,7 @@ export default function LoginPage() {
                         className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                         onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
@@ -253,7 +495,7 @@ export default function LoginPage() {
                         placeholder="Confirm your password"
                         value={signupForm.confirmPassword}
                         onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                        className="pl-10"
+                        className="pl-10 h-12"
                         required
                       />
                     </div>
@@ -265,62 +507,32 @@ export default function LoginPage() {
                       checked={signupForm.agreeToTerms}
                       onCheckedChange={(checked) => setSignupForm({ ...signupForm, agreeToTerms: checked as boolean })}
                     />
-                    <Label htmlFor="terms" className="text-sm">
+                    <Label htmlFor="terms" className="text-sm leading-relaxed">
                       I agree to the{" "}
-                      <Link href="/terms" className="text-primary hover:underline">
+                      <Link href="/terms" className="text-blue-600 hover:underline">
                         Terms of Service
                       </Link>{" "}
                       and{" "}
-                      <Link href="/privacy" className="text-primary hover:underline">
+                      <Link href="/privacy" className="text-blue-600 hover:underline">
                         Privacy Policy
                       </Link>
                     </Label>
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={!signupForm.agreeToTerms}>
-                    Create Account
+                  <Button 
+                    type="submit" 
+                    className="w-full h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium shadow-lg hover:shadow-xl transition-all duration-200" 
+                    disabled={!signupForm.agreeToTerms || loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Creating Account...
+                      </>
+                    ) : (
+                      "Create Account"
+                    )}
                   </Button>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-background px-2 text-muted-foreground">
-                        Or continue with
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button variant="outline" type="button">
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                        <path
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                          fill="#4285F4"
-                        />
-                        <path
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                          fill="#34A853"
-                        />
-                        <path
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                          fill="#FBBC05"
-                        />
-                        <path
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                          fill="#EA4335"
-                        />
-                      </svg>
-                      Google
-                    </Button>
-                    <Button variant="outline" type="button">
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.024-.105-.949-.199-2.403.041-3.439.219-.937 1.219-5.175 1.219-5.175s-.311-.623-.311-1.543c0-1.446.839-2.526 1.885-2.526.888 0 1.318.666 1.318 1.466 0 .893-.568 2.229-.861 3.467-.245 1.04.52 1.888 1.546 1.888 1.856 0 3.283-1.958 3.283-4.789 0-2.503-1.799-4.253-4.37-4.253-2.977 0-4.727 2.234-4.727 4.546 0 .9.347 1.863.781 2.387.085.104.098.195.072.301-.079.329-.254 1.037-.289 1.183-.047.196-.153.238-.353.144-1.314-.612-2.137-2.536-2.137-4.078 0-3.298 2.394-6.325 6.901-6.325 3.628 0 6.44 2.586 6.44 6.043 0 3.607-2.274 6.505-5.431 6.505-1.06 0-2.057-.552-2.396-1.209 0 0-.523 1.992-.65 2.479-.235.9-.871 2.028-1.297 2.717.976.301 2.018.461 3.096.461 6.624 0 11.99-5.367 11.99-11.987C24.007 5.367 18.641.001 12.017.001z" />
-                      </svg>
-                      GitHub
-                    </Button>
-                  </div>
                 </form>
               </CardContent>
             </TabsContent>
@@ -328,13 +540,13 @@ export default function LoginPage() {
         </Card>
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
-          <p>
+          <p className="leading-relaxed">
             By signing in, you agree to our{" "}
-            <Link href="/terms" className="text-primary hover:underline">
+            <Link href="/terms" className="text-blue-600 hover:underline">
               Terms of Service
             </Link>{" "}
             and{" "}
-            <Link href="/privacy" className="text-primary hover:underline">
+            <Link href="/privacy" className="text-blue-600 hover:underline">
               Privacy Policy
             </Link>
           </p>

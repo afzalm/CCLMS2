@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Search, Star, Clock, Users, BookOpen, Play, TrendingUp, Award, CheckCircle, Sparkles } from "lucide-react"
+import Link from "next/link"
 
 interface Course {
   id: string
@@ -39,10 +41,17 @@ interface Stat {
 }
 
 export default function Home() {
+  const router = useRouter()
   const [featuredCourses, setFeaturedCourses] = useState<Course[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [stats, setStats] = useState<Stat[]>([])
   const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -80,6 +89,12 @@ export default function Home() {
       'Photography': 'from-pink-500 to-rose-400'
     }
     return colors[categoryName] || 'from-gray-500 to-gray-400'
+  }
+
+  // Consistent number formatting function
+  const formatNumber = (num: number) => {
+    if (!mounted) return num.toString() // Prevent hydration mismatch
+    return new Intl.NumberFormat('en-US').format(num)
   }
 
   if (loading) {
@@ -123,10 +138,21 @@ export default function Home() {
                   className="pl-10 w-64 border-gray-200 focus:border-blue-400 focus:ring-blue-400"
                 />
               </div>
-              <Button variant="ghost" className="text-gray-700 hover:text-blue-600 hover:bg-blue-50">Log In</Button>
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
-                Sign Up
-              </Button>
+              <Link href="/auth/login">
+                <Button 
+                  variant="ghost" 
+                  className="text-gray-700 hover:text-blue-600 hover:bg-blue-50"
+                >
+                  Log In
+                </Button>
+              </Link>
+              <Link href="/auth/login">
+                <Button 
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                >
+                  Sign Up
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -227,70 +253,78 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {featuredCourses.map((course) => (
-              <Card key={course.id} className="overflow-hidden hover:shadow-2xl transition-all duration-300 group border-0 shadow-lg">
-                <div className="relative">
-                  <div className="aspect-video bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
-                    <Play className="h-16 w-16 text-blue-600/50 group-hover:text-blue-600 transition-colors" />
-                  </div>
-                  <Badge className="absolute top-3 left-3 bg-blue-600 text-white border-0">
-                    {course.level}
-                  </Badge>
-                  {course.featured && (
-                    <Badge className="absolute top-3 right-3 bg-yellow-500 text-white border-0">
-                      <Star className="h-3 w-3 mr-1" />
-                      Featured
-                    </Badge>
-                  )}
-                </div>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border-0">
-                      {course.category}
-                    </Badge>
-                    <div className="flex items-center space-x-1">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">{course.rating}</span>
+              <Link key={course.id} href={`/courses/${course.id}`} className="block">
+                <Card className="overflow-hidden hover:shadow-2xl transition-all duration-300 group border-0 shadow-lg">
+                  <div className="relative">
+                    <div className="aspect-video bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
+                      <Play className="h-16 w-16 text-blue-600/50 group-hover:text-blue-600 transition-colors" />
                     </div>
+                    <Badge className="absolute top-3 left-3 bg-blue-600 text-white border-0">
+                      {course.level}
+                    </Badge>
+                    {course.featured && (
+                      <Badge className="absolute top-3 right-3 bg-yellow-500 text-white border-0">
+                        <Star className="h-3 w-3 mr-1" />
+                        Featured
+                      </Badge>
+                    )}
                   </div>
-                  <CardTitle className="line-clamp-2 text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                    {course.title}
-                  </CardTitle>
-                  <CardDescription className="line-clamp-2 text-gray-600">
-                    {course.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex items-center space-x-4 text-sm text-gray-500 mb-4">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700 border-0">
+                        {course.category}
+                      </Badge>
+                      <div className="flex items-center space-x-1">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="text-sm font-medium">{course.rating}</span>
+                      </div>
+                    </div>
+                    <CardTitle className="line-clamp-2 text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                      {course.title}
+                    </CardTitle>
+                    <CardDescription className="line-clamp-2 text-gray-600">
+                      {course.description}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex items-center space-x-4 text-sm text-gray-500 mb-4">
+                      <div className="flex items-center space-x-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
+                            {course.instructor.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs font-medium">{course.instructor}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-gray-500">
+                      <div className="flex items-center space-x-1">
+                        <Clock className="h-4 w-4" />
+                        <span>{course.duration}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Users className="h-4 w-4" />
+                        <span>{formatNumber(course.students)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex items-center justify-between pt-3 border-t border-gray-100">
                     <div className="flex items-center space-x-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                          {course.instructor.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-xs font-medium">{course.instructor}</span>
+                      <div className="text-2xl font-bold text-blue-600">${course.price}</div>
+                      <div className="text-sm text-gray-500 line-through">${(course.price * 1.2).toFixed(2)}</div>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <div className="flex items-center space-x-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{course.duration}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Users className="h-4 w-4" />
-                      <span>{course.students.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex items-center justify-between pt-3 border-t border-gray-100">
-                  <div className="flex items-center space-x-2">
-                    <div className="text-2xl font-bold text-blue-600">${course.price}</div>
-                    <div className="text-sm text-gray-500 line-through">${(course.price * 1.2).toFixed(2)}</div>
-                  </div>
-                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
-                    Enroll Now
-                  </Button>
-                </CardFooter>
-              </Card>
+                    <Button
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        router.push(`/courses/${course.id}`);
+                      }}
+                    >
+                      Enroll Now
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </Link>
             ))}
           </div>
         </div>

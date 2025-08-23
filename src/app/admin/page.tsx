@@ -1,10 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { 
   Select, 
   SelectContent, 
@@ -33,13 +36,52 @@ import {
   Settings,
   Shield,
   UserCheck,
-  UserX
+  UserX,
+  LogOut,
+  User
 } from "lucide-react"
 
 export default function AdminDashboard() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [userFilter, setUserFilter] = useState("all")
   const [courseFilter, setCourseFilter] = useState("all")
+  const [user, setUser] = useState<any>(null)
+  const [mounted, setMounted] = useState(false)
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    // Get user from localStorage
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      setUser(JSON.parse(storedUser))
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    console.log('Admin logout clicked')
+    try {
+      // Clear local storage immediately
+      localStorage.removeItem('user')
+      localStorage.removeItem('token')
+      
+      // Call logout API (optional, for server-side cleanup)
+      fetch('/api/auth/logout', {
+        method: 'POST',
+      }).catch(err => console.log('Logout API error:', err))
+      
+      // Redirect to home page immediately
+      window.location.href = '/'
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if there's an error, still redirect
+      window.location.href = '/'
+    }
+  }
 
   // Mock admin data
   const platformStats = {
@@ -50,6 +92,12 @@ export default function AdminDashboard() {
     pendingReviews: 23,
     flaggedContent: 8,
     supportTickets: 47
+  }
+
+  // Consistent number formatting function
+  const formatNumber = (num: number) => {
+    if (!mounted) return num.toString() // Prevent hydration mismatch
+    return new Intl.NumberFormat('en-US').format(num)
   }
 
   const users = [
@@ -272,11 +320,62 @@ export default function AdminDashboard() {
               <nav className="hidden md:flex items-center space-x-6">
                 <a href="/" className="text-sm font-medium hover:text-primary">Platform</a>
                 <a href="/admin" className="text-sm font-medium text-primary">Admin</a>
+                <a href="/admin/sso-settings" className="text-sm font-medium hover:text-primary flex items-center">
+                  <Settings className="h-4 w-4 mr-1" />
+                  SSO Settings
+                </a>
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline">Settings</Button>
-              <Button>Log Out</Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                    <Avatar>
+                      <AvatarImage src={user?.avatar} />
+                      <AvatarFallback className="bg-red-100 text-red-600">
+                        {user?.name?.split(' ').map((n: string) => n[0]).join('') || 'A'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{user?.name || 'Admin User'}</p>
+                      <p className="w-[200px] truncate text-sm text-muted-foreground">
+                        {user?.email || 'admin@example.com'}
+                      </p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      router.push('/profile')
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => console.log('Settings clicked')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      console.log('Admin logout menu item clicked')
+                      handleLogout()
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -296,7 +395,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                  <p className="text-2xl font-bold">{platformStats.totalUsers.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">{formatNumber(platformStats.totalUsers)}</p>
                   <p className="text-xs text-green-600 flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +15% from last month
@@ -312,7 +411,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Courses</p>
-                  <p className="text-2xl font-bold">{platformStats.totalCourses.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">{formatNumber(platformStats.totalCourses)}</p>
                   <p className="text-xs text-green-600 flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +8% from last month
@@ -328,7 +427,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
-                  <p className="text-2xl font-bold">${platformStats.totalRevenue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold">${formatNumber(platformStats.totalRevenue)}</p>
                   <p className="text-xs text-green-600 flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +12% from last month
@@ -391,7 +490,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold">
-                        ${revenueData[revenueData.length - 1].revenue.toLocaleString()}
+                        ${formatNumber(revenueData[revenueData.length - 1].revenue)}
                       </p>
                       <p className="text-sm text-muted-foreground">This month</p>
                     </div>
@@ -417,10 +516,14 @@ export default function AdminDashboard() {
                       <span className="text-sm">Review Courses</span>
                       <Badge className="mt-1">{courses.filter(c => c.status === "pending_review").length}</Badge>
                     </Button>
-                    <Button variant="outline" className="h-20 flex-col">
-                      <AlertTriangle className="h-6 w-6 mb-2" />
-                      <span className="text-sm">Flagged Content</span>
-                      <Badge className="mt-1">{flaggedContent.filter(f => f.status === "pending").length}</Badge>
+                    <Button 
+                      variant="outline" 
+                      className="h-20 flex-col"
+                      onClick={() => router.push('/admin/sso-settings')}
+                    >
+                      <Settings className="h-6 w-6 mb-2" />
+                      <span className="text-sm">SSO Settings</span>
+                      <span className="text-xs text-muted-foreground mt-1">Manage OAuth</span>
                     </Button>
                     <Button variant="outline" className="h-20 flex-col">
                       <MessageSquare className="h-6 w-6 mb-2" />
@@ -538,12 +641,12 @@ export default function AdminDashboard() {
                         </p>
                         {user.role === "STUDENT" && (
                           <p className="text-sm font-medium">
-                            {user.coursesEnrolled} courses • ${user.totalSpent}
+                            {user.coursesEnrolled || 0} courses • ${user.totalSpent || 0}
                           </p>
                         )}
                         {user.role === "INSTRUCTOR" && (
                           <p className="text-sm font-medium">
-                            {user.coursesCreated} courses • ${user.totalRevenue.toLocaleString()}
+                            {user.coursesCreated || 0} courses • ${formatNumber(user.totalRevenue || 0)}
                           </p>
                         )}
                       </div>
@@ -627,7 +730,7 @@ export default function AdminDashboard() {
                           Updated: {course.lastUpdated}
                         </p>
                         <p className="text-sm font-medium">
-                          {course.students} students • ${course.revenue.toLocaleString()}
+                          {course.students} students • ${formatNumber(course.revenue)}
                         </p>
                       </div>
                       <div className="flex space-x-2">

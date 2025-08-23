@@ -256,6 +256,20 @@ model Payment {
   @@map("payments")
 }
 
+model SSOProvider {
+  id          String   @id @default(cuid())
+  name        String   @unique // "google", "facebook", "linkedin"
+  displayName String   // "Google", "Facebook", "LinkedIn"
+  clientId    String
+  clientSecret String
+  enabled     Boolean  @default(true)
+  scopes      String?  // JSON array of scopes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("sso_providers")
+}
+
 // Enums
 enum Role {
   STUDENT

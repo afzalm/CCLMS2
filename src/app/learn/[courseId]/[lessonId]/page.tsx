@@ -26,10 +26,14 @@ import {
   HelpCircle,
   Award,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ArrowLeft
 } from "lucide-react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function LearnPage({ params }: { params: { courseId: string; lessonId: string } }) {
+  const router = useRouter()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
@@ -217,8 +221,50 @@ export default function LearnPage({ params }: { params: { courseId: string; less
   }
 
   const navigateLesson = (direction: "prev" | "next") => {
-    // In a real app, this would navigate to the previous/next lesson
-    console.log(`Navigating ${direction} lesson`)
+    // Find current lesson in curriculum
+    let currentChapterIndex = -1
+    let currentLessonIndex = -1
+    
+    for (let i = 0; i < curriculum.length; i++) {
+      const lessonIndex = curriculum[i].lessons.findIndex(l => l.id === params.lessonId)
+      if (lessonIndex !== -1) {
+        currentChapterIndex = i
+        currentLessonIndex = lessonIndex
+        break
+      }
+    }
+    
+    if (currentChapterIndex === -1) return
+    
+    let nextLesson = null
+    
+    if (direction === "next") {
+      // Try next lesson in current chapter
+      if (currentLessonIndex < curriculum[currentChapterIndex].lessons.length - 1) {
+        nextLesson = curriculum[currentChapterIndex].lessons[currentLessonIndex + 1]
+      } else if (currentChapterIndex < curriculum.length - 1) {
+        // First lesson of next chapter
+        nextLesson = curriculum[currentChapterIndex + 1].lessons[0]
+      }
+    } else {
+      // Try previous lesson in current chapter
+      if (currentLessonIndex > 0) {
+        nextLesson = curriculum[currentChapterIndex].lessons[currentLessonIndex - 1]
+      } else if (currentChapterIndex > 0) {
+        // Last lesson of previous chapter
+        const prevChapter = curriculum[currentChapterIndex - 1]
+        nextLesson = prevChapter.lessons[prevChapter.lessons.length - 1]
+      }
+    }
+    
+    if (nextLesson) {
+      router.push(`/learn/${params.courseId}/${nextLesson.id}`)
+    }
+  }
+
+  const handleBackToCourse = () => {
+    // Navigate back to course overview
+    router.push(`/learn/${params.courseId}`)
   }
 
   // Auto-save notes
@@ -254,7 +300,10 @@ export default function LearnPage({ params }: { params: { courseId: string; less
                 <Award className="h-4 w-4 mr-2" />
                 My Certificate
               </Button>
-              <Button variant="ghost">Back to Course</Button>
+              <Button variant="ghost" onClick={handleBackToCourse}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Course
+              </Button>
             </div>
           </div>
         </div>
@@ -594,11 +643,16 @@ export default function LearnPage({ params }: { params: { courseId: string; less
                       {chapter.lessons.map((lesson) => (
                         <div
                           key={lesson.id}
+                          onClick={() => {
+                            if (lesson.id !== currentLesson.id) {
+                              router.push(`/learn/${params.courseId}/${lesson.id}`)
+                            }
+                          }}
                           className={`flex items-center justify-between p-2 rounded text-sm cursor-pointer transition-colors ${
                             lesson.id === currentLesson.id
                               ? "bg-primary text-primary-foreground"
                               : lesson.completed
-                              ? "text-muted-foreground"
+                              ? "text-muted-foreground hover:bg-muted"
                               : "hover:bg-muted"
                           }`}
                         >

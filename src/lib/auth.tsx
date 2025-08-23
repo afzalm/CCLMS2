@@ -1,12 +1,13 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+import { useRouter } from "next/navigation"
 
 interface User {
   id: string
   email: string
   name?: string
-  role: "STUDENT" | "INSTRUCTOR" | "ADMIN"
+  role: "STUDENT" | "TRAINER" | "ADMIN"
   avatar?: string
   bio?: string
 }
@@ -16,9 +17,10 @@ interface AuthContextType {
   loading: boolean
   login: (email: string, password: string) => Promise<boolean>
   signup: (name: string, email: string, password: string) => Promise<boolean>
-  logout: () => void
+  logout: () => Promise<void>
   hasRole: (role: string) => boolean
   isAuthenticated: boolean
+  refreshAuth: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   // Check for existing session on mount
   useEffect(() => {
@@ -34,13 +37,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      // In a real app, this would verify the session with your backend
-      const storedUser = localStorage.getItem("user")
-      if (storedUser) {
-        setUser(JSON.parse(storedUser))
+      setLoading(true)
+      // Check if user is authenticated by calling a protected endpoint
+      const response = await fetch('/api/auth/me', {
+        method: 'GET',
+        credentials: 'include', // Include cookies
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+      } else {
+        setUser(null)
       }
     } catch (error) {
-      console.error("Auth check failed:", error)
+      console.error('Auth check failed:', error)
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -50,43 +65,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       
-      // In a real app, this would make an API call to your backend
-      // Mock authentication logic
-      const mockUsers = [
-        {
-          id: "1",
-          email: "student@example.com",
-          name: "John Student",
-          role: "STUDENT" as const,
-          avatar: "/api/placeholder/100/100"
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        credentials: 'include', // Include cookies
+        headers: {
+          'Content-Type': 'application/json',
         },
-        {
-          id: "2",
-          email: "instructor@example.com",
-          name: "Jane Instructor",
-          role: "INSTRUCTOR" as const,
-          avatar: "/api/placeholder/100/100"
-        },
-        {
-          id: "3",
-          email: "admin@example.com",
-          name: "Admin User",
-          role: "ADMIN" as const,
-          avatar: "/api/placeholder/100/100"
-        }
-      ]
+        body: JSON.stringify({ email, password }),
+      })
 
-      const foundUser = mockUsers.find(u => u.email === email)
-      
-      if (foundUser && password === "password") {
-        setUser(foundUser)
-        localStorage.setItem("user", JSON.stringify(foundUser))
+      const data = await response.json()
+
+      if (response.ok) {
+        const userData = data.data.user
+        setUser(userData)
+        
+        // Also store in localStorage for immediate access
+        localStorage.setItem('user', JSON.stringify(userData))
+        
         return true
+      } else {
+        console.error('Login failed:', data.error)
+        return false
       }
-      
-      return false
     } catch (error) {
-      console.error("Login failed:", error)
+      console.error('Login failed:', error)
       return false
     } finally {
       setLoading(false)
@@ -97,30 +100,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       
-      // In a real app, this would make an API call to your backend
-      // Mock signup logic
-      const newUser: User = {
-        id: Date.now().toString(),
-        email,
-        name,
-        role: "STUDENT"
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        credentials: 'include', // Include cookies
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          name, 
+          email, 
+          password, 
+          confirmPassword: password, 
+          agreeToTerms: true 
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setUser(data.data.user)
+        return true
+      } else {
+        console.error('Signup failed:', data.error)
+        return false
       }
-      
-      setUser(newUser)
-      localStorage.setItem("user", JSON.stringify(newUser))
-      return true
     } catch (error) {
-      console.error("Signup failed:", error)
+      console.error('Signup failed:', error)
       return false
     } finally {
       setLoading(false)
     }
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem("user")
-    // In a real app, you might also clear cookies or make an API call to invalidate the session
+  const logout = async (): Promise<void> => {
+    try {
+      setLoading(true)
+      
+      // Call logout API to clear server-side cookies
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      setUser(null)
+      router.push('/auth/login')
+    } catch (error) {
+      console.error('Logout failed:', error)
+      // Even if API call fails, clear local state
+      setUser(null)
+      router.push('/auth/login')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshAuth = async (): Promise<void> => {
+    await checkAuth()
   }
 
   const hasRole = (role: string): boolean => {
@@ -137,7 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signup,
     logout,
     hasRole,
-    isAuthenticated
+    isAuthenticated,
+    refreshAuth
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
