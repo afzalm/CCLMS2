@@ -91,7 +91,8 @@ function CheckoutSuccessContent() {
           courseCount: cartData.items.length,
           paymentMethod: method,
           sessionId,
-          paymentId
+          paymentId,
+          cartItems: cartData.items.map(item => ({ id: item.id, title: item.title }))
         })
 
         // Create enrollments
@@ -111,10 +112,11 @@ function CheckoutSuccessContent() {
           })
         })
 
+        console.log('Enrollment API response status:', enrollmentResponse.status)
+        
         if (enrollmentResponse.ok) {
           const enrollmentData = await enrollmentResponse.json()
-          
-          // Create order details from actual enrollment data
+          console.log('Enrollment successful:', enrollmentData)
           const actualOrder: OrderDetails = {
             id: `ORD-${Date.now()}`,
             paymentMethod: method,
@@ -142,11 +144,13 @@ function CheckoutSuccessContent() {
           // Clear cart after successful enrollment
           localStorage.removeItem('cart')
           
-          console.log('Enrollment successful:', enrollmentData)
+          console.log('Enrollment successful, cart cleared. Enrollments created:', enrollmentData.data?.enrollments?.length || 0)
         } else {
+          const errorData = await enrollmentResponse.text()
           console.error('Failed to create enrollments', {
             status: enrollmentResponse.status,
-            statusText: enrollmentResponse.statusText
+            statusText: enrollmentResponse.statusText,
+            errorData
           })
           // Still show success page with mock data for better UX
           createMockOrder()
@@ -199,8 +203,21 @@ function CheckoutSuccessContent() {
   }
 
   const handleGoToDashboard = () => {
+    // Redirect to learn dashboard as per requirements
     router.push('/learn')
   }
+
+  // Auto-redirect to learn dashboard after 5 seconds
+  useEffect(() => {
+    if (orderDetails) {
+      const redirectTimer = setTimeout(() => {
+        console.log('Auto-redirecting to learn dashboard...')
+        router.push('/learn')
+      }, 8000) // 8 seconds to allow user to read the success message
+
+      return () => clearTimeout(redirectTimer)
+    }
+  }, [orderDetails, router])
 
   if (isLoading) {
     return (
@@ -249,9 +266,10 @@ function CheckoutSuccessContent() {
             </div>
             <Button 
               onClick={handleGoToDashboard}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-lg px-8 py-3"
+              size="lg"
             >
-              Go to Dashboard
+              🎓 Go to Learning Dashboard
             </Button>
           </div>
         </div>
@@ -266,13 +284,18 @@ function CheckoutSuccessContent() {
                 <CheckCircle className="h-16 w-16 text-green-600" />
               </div>
             </div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Payment Successful!</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">🎉 Payment Successful!</h1>
             <p className="text-xl text-gray-600 mb-2">
-              Thank you for your purchase. Your courses are now available.
+              Thank you for your purchase! Your courses are now available in your learning dashboard.
             </p>
-            <p className="text-gray-500">
+            <p className="text-gray-500 mb-4">
               Order #{orderDetails.id} • {new Date(orderDetails.purchaseDate).toLocaleDateString()}
             </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-blue-800 text-sm font-medium">
+                🚀 You will be automatically redirected to your learning dashboard in a few seconds, or click the button below to go now.
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -312,9 +335,9 @@ function CheckoutSuccessContent() {
                         </div>
                         <Button 
                           onClick={() => handleStartLearning(course.id)}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                          className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
                         >
-                          Start Learning
+                          🚀 Start Learning
                           <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
                       </div>

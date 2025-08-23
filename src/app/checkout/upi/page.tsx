@@ -136,13 +136,14 @@ export default function UpiCheckoutPage() {
 
       if (data.status === 'success') {
         toast({
-          title: "Payment Successful!",
-          description: "Your courses have been unlocked. Redirecting...",
+          title: "🎉 Payment Successful!",
+          description: "Your courses have been unlocked. Redirecting to your learning dashboard...",
         })
         
         // Clear cart and redirect to success page
         setTimeout(() => {
           clearCart()
+          // Redirect to success page which will then redirect to learn dashboard
           router.push(`/checkout/success?payment_id=${paymentData.paymentId}&method=upi`)
         }, 2000)
       } else if (data.status === 'failed') {

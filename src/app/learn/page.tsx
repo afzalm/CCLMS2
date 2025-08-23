@@ -78,20 +78,32 @@ export default function StudentDashboard() {
         if (storedUser) {
           const userData = JSON.parse(storedUser)
           setUser(userData)
+          console.log('👤 User loaded for dashboard:', { id: userData.id, email: userData.email, name: userData.name })
 
           // Fetch dashboard data from API
           const response = await fetch(`/api/student/dashboard?userId=${userData.id}`)
+          console.log('📊 Dashboard API response status:', response.status)
+          
           if (response.ok) {
             const data = await response.json()
+            console.log('📚 Dashboard data received:', {
+              enrolledCoursesCount: data.data.enrolledCourses.length,
+              enrolledCourses: data.data.enrolledCourses,
+              stats: data.data.stats,
+              achievements: data.data.achievements.length
+            })
             setEnrolledCourses(data.data.enrolledCourses)
             setAchievements(data.data.achievements)
             setStats(data.data.stats)
           } else {
-            console.error('Failed to fetch dashboard data')
+            const errorText = await response.text()
+            console.error('❌ Failed to fetch dashboard data:', { status: response.status, error: errorText })
           }
+        } else {
+          console.warn('⚠️ No user found in localStorage')
         }
       } catch (error) {
-        console.error('Error fetching dashboard data:', error)
+        console.error('❌ Error fetching dashboard data:', error)
       } finally {
         setLoading(false)
       }
@@ -267,53 +279,70 @@ export default function StudentDashboard() {
             </div>
             
             <div className="space-y-6">
-              {enrolledCourses.map((course) => (
-                <Card key={course.id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-start space-x-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
-                        <Play className="h-8 w-8 text-blue-600" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h3 className="font-semibold text-lg mb-1">{course.title}</h3>
-                            <p className="text-sm text-gray-600">by {course.instructor}</p>
-                          </div>
-                          <Badge variant="secondary">
-                            {course.completedLessons}/{course.totalLessons} lessons
-                          </Badge>
-                        </div>
-                        
-                        <div className="mb-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm text-gray-600">Progress</span>
-                            <span className="text-sm font-medium">{course.progress}%</span>
-                          </div>
-                          <Progress value={course.progress} className="h-2" />
-                        </div>
-                        
-                        {course.nextLesson && (
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm text-gray-600">Next lesson:</p>
-                              <p className="text-sm font-medium">{course.nextLesson.title}</p>
-                            </div>
-                            <div className="flex space-x-2">
-                              <Link href={`/learn/${course.id}`}>
-                                <Button variant="outline" size="sm">View Course</Button>
-                              </Link>
-                              <Link href={`/learn/${course.id}/${course.nextLesson.id}`}>
-                                <Button size="sm">Continue</Button>
-                              </Link>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+              {enrolledCourses.length === 0 ? (
+                <Card className="text-center py-12">
+                  <CardContent>
+                    <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">No courses enrolled yet</h3>
+                    <p className="text-gray-600 mb-4">
+                      Start your learning journey by enrolling in a course!
+                    </p>
+                    <Link href="/courses">
+                      <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
+                        Browse Courses
+                      </Button>
+                    </Link>
                   </CardContent>
                 </Card>
-              ))}
+              ) : (
+                enrolledCourses.map((course) => (
+                  <Card key={course.id} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-start space-x-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg flex items-center justify-center">
+                          <Play className="h-8 w-8 text-blue-600" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h3 className="font-semibold text-lg mb-1">{course.title}</h3>
+                              <p className="text-sm text-gray-600">by {course.instructor}</p>
+                            </div>
+                            <Badge variant="secondary">
+                              {course.completedLessons}/{course.totalLessons} lessons
+                            </Badge>
+                          </div>
+                          
+                          <div className="mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm text-gray-600">Progress</span>
+                              <span className="text-sm font-medium">{course.progress}%</span>
+                            </div>
+                            <Progress value={course.progress} className="h-2" />
+                          </div>
+                          
+                          {course.nextLesson && (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm text-gray-600">Next lesson:</p>
+                                <p className="text-sm font-medium">{course.nextLesson.title}</p>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Link href={`/learn/${course.id}`}>
+                                  <Button variant="outline" size="sm">View Course</Button>
+                                </Link>
+                                <Link href={`/learn/${course.id}/${course.nextLesson.id}`}>
+                                  <Button size="sm">Continue</Button>
+                                </Link>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
 
