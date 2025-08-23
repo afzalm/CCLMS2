@@ -51,6 +51,8 @@ interface Course {
 }
 
 export default function CoursesPage() {
+  const router = useRouter()
+  const { addToCart, isInCart, getCartItemCount } = useCart()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedLevel, setSelectedLevel] = useState("all")
@@ -83,6 +85,33 @@ export default function CoursesPage() {
 
     fetchCourses()
   }, [searchQuery, selectedCategory, selectedLevel, selectedPrice, sortBy])
+
+  const handleAddToCart = (course: Course) => {
+    const cartItem = {
+      id: course.id,
+      title: course.title,
+      instructor: course.instructor,
+      price: course.price,
+      originalPrice: course.price * 1.2, // Assuming 20% discount
+      thumbnail: '/api/placeholder/400/240',
+      duration: course.duration || '10h 30m',
+      lectures: course.lectures || 45,
+      level: course.level,
+      rating: course.rating,
+      addedAt: new Date()
+    }
+    
+    addToCart(cartItem)
+    
+    toast({
+      title: "Added to Cart",
+      description: `${course.title} has been added to your cart.`,
+    })
+  }
+
+  const handleGoToCart = () => {
+    router.push('/cart')
+  }
 
   const categories = [
     "All",
@@ -147,6 +176,16 @@ export default function CoursesPage() {
               </nav>
             </div>
             <div className="flex items-center space-x-4">
+              <div className="relative">
+                <Button 
+                  variant="ghost" 
+                  className="text-gray-700 hover:text-blue-600 hover:bg-blue-50"
+                  onClick={handleGoToCart}
+                >
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  Cart ({getCartItemCount()})
+                </Button>
+              </div>
               <Button variant="ghost" className="text-gray-700 hover:text-blue-600 hover:bg-blue-50">Log In</Button>
               <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
                 Sign Up
@@ -384,8 +423,30 @@ export default function CoursesPage() {
                           {course.price > 0 ? `$${(course.price * 1.2).toFixed(2)}` : ''}
                         </div>
                       </div>
-                      <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
-                        {course.enrolled ? "Continue Learning" : "Enroll Now"}
+                      <Button 
+                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (course.enrolled) {
+                            router.push(`/learn/courses/${course.id}`)
+                          } else if (isInCart(course.id)) {
+                            handleGoToCart()
+                          } else {
+                            handleAddToCart(course)
+                          }
+                        }}
+                      >
+                        {course.enrolled ? "Continue Learning" : isInCart(course.id) ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            In Cart
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add to Cart
+                          </>
+                        )}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -447,8 +508,30 @@ export default function CoursesPage() {
                                   {course.price > 0 ? `$${(course.price * 1.2).toFixed(2)}` : ''}
                                 </div>
                               </div>
-                              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
-                                {course.enrolled ? "Continue Learning" : "Enroll Now"}
+                              <Button 
+                                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  if (course.enrolled) {
+                                    router.push(`/learn/courses/${course.id}`)
+                                  } else if (isInCart(course.id)) {
+                                    handleGoToCart()
+                                  } else {
+                                    handleAddToCart(course)
+                                  }
+                                }}
+                              >
+                                {course.enrolled ? "Continue Learning" : isInCart(course.id) ? (
+                                  <>
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    In Cart
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add to Cart
+                                  </>
+                                )}
                               </Button>
                             </div>
                           </div>

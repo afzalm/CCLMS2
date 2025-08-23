@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { 
   Settings, 
   Save, 
@@ -18,7 +21,9 @@ import {
   EyeOff, 
   CheckCircle, 
   XCircle,
-  Loader2
+  Loader2,
+  LogOut,
+  User
 } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
@@ -57,12 +62,49 @@ const defaultProviders = [
 ]
 
 export default function SSOSettingsPage() {
+  const router = useRouter()
   const [providers, setProviders] = useState<SSOProvider[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [editingProvider, setEditingProvider] = useState<string | null>(null)
   const [formData, setFormData] = useState<Partial<SSOProvider>>({})
+  const [user, setUser] = useState<any>(null)
+  const [mounted, setMounted] = useState(false)
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    // Get user from localStorage
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      setUser(JSON.parse(storedUser))
+    }
+  }, [])
+
+  const handleLogout = async () => {
+    console.log('Admin logout clicked')
+    try {
+      // Clear local storage immediately
+      localStorage.removeItem('user')
+      localStorage.removeItem('token')
+      
+      // Call logout API (optional, for server-side cleanup)
+      fetch('/api/auth/logout', {
+        method: 'POST',
+      }).catch(err => console.log('Logout API error:', err))
+      
+      // Redirect to home page immediately
+      window.location.href = '/'
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if there's an error, still redirect
+      window.location.href = '/'
+    }
+  }
 
   useEffect(() => {
     loadProviders()
@@ -207,18 +249,168 @@ export default function SSOSettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen bg-background">
+        {/* Header */}
+        <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-8 w-8 text-primary" />
+                  <span className="text-2xl font-bold">Admin Portal</span>
+                </div>
+                <nav className="hidden md:flex items-center space-x-6">
+                  <a href="/" className="text-sm font-medium hover:text-primary">Platform</a>
+                  <a href="/admin" className="text-sm font-medium hover:text-primary">Admin</a>
+                  <a href="/admin/sso-settings" className="text-sm font-medium text-primary flex items-center">
+                    <Settings className="h-4 w-4 mr-1" />
+                    SSO Settings
+                  </a>
+                </nav>
+              </div>
+              <div className="flex items-center space-x-4">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                      <Avatar>
+                        <AvatarImage src={user?.avatar} />
+                        <AvatarFallback className="bg-red-100 text-red-600">
+                          {user?.name?.split(' ').map((n: string) => n[0]).join('') || 'A'}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <div className="flex items-center justify-start gap-2 p-2">
+                      <div className="flex flex-col space-y-1 leading-none">
+                        <p className="font-medium">{user?.name || 'Admin User'}</p>
+                        <p className="w-[200px] truncate text-sm text-muted-foreground">
+                          {user?.email || 'admin@example.com'}
+                        </p>
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onSelect={(e) => {
+                        e.preventDefault()
+                        router.push('/profile')
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => console.log('Settings clicked')}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Settings</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onSelect={(e) => {
+                        e.preventDefault()
+                        console.log('Admin logout menu item clicked')
+                        handleLogout()
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </header>
+        
+        <div className="flex items-center justify-center min-h-[calc(100vh-80px)]">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center space-x-2">
-        <Shield className="h-6 w-6" />
-        <h1 className="text-3xl font-bold">SSO Provider Settings</h1>
-      </div>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Shield className="h-8 w-8 text-primary" />
+                <span className="text-2xl font-bold">Admin Portal</span>
+              </div>
+              <nav className="hidden md:flex items-center space-x-6">
+                <a href="/" className="text-sm font-medium hover:text-primary">Platform</a>
+                <a href="/admin" className="text-sm font-medium hover:text-primary">Admin</a>
+                <a href="/admin/sso-settings" className="text-sm font-medium text-primary flex items-center">
+                  <Settings className="h-4 w-4 mr-1" />
+                  SSO Settings
+                </a>
+              </nav>
+            </div>
+            <div className="flex items-center space-x-4">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                    <Avatar>
+                      <AvatarImage src={user?.avatar} />
+                      <AvatarFallback className="bg-red-100 text-red-600">
+                        {user?.name?.split(' ').map((n: string) => n[0]).join('') || 'A'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{user?.name || 'Admin User'}</p>
+                      <p className="w-[200px] truncate text-sm text-muted-foreground">
+                        {user?.email || 'admin@example.com'}
+                      </p>
+                    </div>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      router.push('/profile')
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => console.log('Settings clicked')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      console.log('Admin logout menu item clicked')
+                      handleLogout()
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">SSO Provider Settings</h1>
+          <p className="text-muted-foreground">Configure social sign-on providers for your application</p>
+        </div>
 
       <Alert>
         <Shield className="h-4 w-4" />
@@ -449,6 +641,7 @@ export default function SSOSettingsPage() {
           </Tabs>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }

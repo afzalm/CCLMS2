@@ -525,10 +525,14 @@ export default function AdminDashboard() {
                       <span className="text-sm">SSO Settings</span>
                       <span className="text-xs text-muted-foreground mt-1">Manage OAuth</span>
                     </Button>
-                    <Button variant="outline" className="h-20 flex-col">
-                      <MessageSquare className="h-6 w-6 mb-2" />
-                      <span className="text-sm">Support Tickets</span>
-                      <Badge className="mt-1">{supportTickets.filter(s => s.status === "open").length}</Badge>
+                    <Button 
+                      variant="outline" 
+                      className="h-20 flex-col"
+                      onClick={() => router.push('/admin/payment-settings')}
+                    >
+                      <CreditCard className="h-6 w-6 mb-2" />
+                      <span className="text-sm">Payment Settings</span>
+                      <span className="text-xs text-muted-foreground mt-1">Gateway Config</span>
                     </Button>
                   </div>
                 </CardContent>

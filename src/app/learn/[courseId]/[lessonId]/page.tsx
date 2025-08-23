@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, use } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -32,7 +32,7 @@ import {
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-export default function LearnPage({ params }: { params: { courseId: string; lessonId: string } }) {
+export default function LearnPage({ params }: { params: Promise<{ courseId: string; lessonId: string }> }) {
   const router = useRouter()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -45,9 +45,12 @@ export default function LearnPage({ params }: { params: { courseId: string; less
   const [notes, setNotes] = useState("")
   const [activeTab, setActiveTab] = useState("overview")
 
+  // Unwrap the params Promise using React.use()
+  const { courseId, lessonId } = use(params)
+
   // Mock data
   const course = {
-    id: params.courseId,
+    id: courseId,
     title: "Complete Web Development Bootcamp",
     instructor: "Dr. Sarah Chen",
     totalLessons: 320,
@@ -56,7 +59,7 @@ export default function LearnPage({ params }: { params: { courseId: string; less
   }
 
   const currentLesson = {
-    id: params.lessonId,
+    id: lessonId,
     title: "HTML Document Structure",
     description: "Learn the fundamental structure of HTML documents including doctype, html, head, and body elements.",
     duration: 925, // 15:25 in seconds
@@ -226,7 +229,7 @@ export default function LearnPage({ params }: { params: { courseId: string; less
     let currentLessonIndex = -1
     
     for (let i = 0; i < curriculum.length; i++) {
-      const lessonIndex = curriculum[i].lessons.findIndex(l => l.id === params.lessonId)
+      const lessonIndex = curriculum[i].lessons.findIndex(l => l.id === lessonId)
       if (lessonIndex !== -1) {
         currentChapterIndex = i
         currentLessonIndex = lessonIndex
@@ -236,7 +239,8 @@ export default function LearnPage({ params }: { params: { courseId: string; less
     
     if (currentChapterIndex === -1) return
     
-    let nextLesson = null
+    type LessonType = typeof curriculum[0]['lessons'][0]
+    let nextLesson: LessonType | null = null
     
     if (direction === "next") {
       // Try next lesson in current chapter
@@ -258,13 +262,13 @@ export default function LearnPage({ params }: { params: { courseId: string; less
     }
     
     if (nextLesson) {
-      router.push(`/learn/${params.courseId}/${nextLesson.id}`)
+      router.push(`/learn/${courseId}/${nextLesson.id}`)
     }
   }
 
   const handleBackToCourse = () => {
     // Navigate back to course overview
-    router.push(`/learn/${params.courseId}`)
+    router.push(`/learn/${courseId}`)
   }
 
   // Auto-save notes
@@ -645,7 +649,7 @@ export default function LearnPage({ params }: { params: { courseId: string; less
                           key={lesson.id}
                           onClick={() => {
                             if (lesson.id !== currentLesson.id) {
-                              router.push(`/learn/${params.courseId}/${lesson.id}`)
+                              router.push(`/learn/${courseId}/${lesson.id}`)
                             }
                           }}
                           className={`flex items-center justify-between p-2 rounded text-sm cursor-pointer transition-colors ${

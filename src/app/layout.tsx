@@ -16,6 +16,15 @@ export const metadata: Metadata = {
   description: "A comprehensive learning management system with advanced analytics for instructors and personalized learning experiences for students.",
   keywords: ["CourseCompass", "LMS", "e-learning", "online education", "analytics", "React", "Next.js"],
   authors: [{ name: "CourseCompass Team" }],
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '32x32' },
+    ],
+    apple: [
+      { url: '/favicon.svg', sizes: '180x180', type: 'image/svg+xml' },
+    ],
+  },
   openGraph: {
     title: "CourseCompass - Data-Driven Learning Platform",
     description: "Advanced learning management system with real-time analytics and personalized learning experiences.",

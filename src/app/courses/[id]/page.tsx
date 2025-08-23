@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, use } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,15 +26,24 @@ import {
   DollarSign,
   Award,
   MessageCircle,
-  Sparkles
+  Sparkles,
+  ShoppingCart,
+  Plus
 } from "lucide-react"
+import { useCart } from "@/contexts/cart-context"
+import { toast } from "@/hooks/use-toast"
 
-export default function CourseDetailPage({ params }: { params: { id: string } }) {
+export default function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter()
+  const { addToCart, isInCart, getCartItemCount } = useCart()
   const [expandedChapters, setExpandedChapters] = useState<string[]>([])
+  
+  // Unwrap the params Promise using React.use()
+  const { id } = use(params)
   
   // Mock course data
   const course = {
-    id: params.id,
+    id: id,
     title: "Complete Web Development Bootcamp",
     description: "Learn HTML, CSS, JavaScript, React, Node.js and more in this comprehensive course. Build real-world projects and launch your career as a full-stack developer.",
     instructor: {
@@ -47,7 +57,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
     price: 89.99,
     originalPrice: 199.99,
     rating: 4.8,
-    reviews: 3240,
+    reviewCount: 3240,
     students: 15420,
     duration: "52 hours",
     lectures: 320,
@@ -141,6 +151,33 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
     )
   }
 
+  const handleAddToCart = () => {
+    const cartItem = {
+      id: course.id,
+      title: course.title,
+      instructor: course.instructor.name,
+      price: course.price,
+      originalPrice: course.originalPrice,
+      thumbnail: course.thumbnail,
+      duration: calculateTotalDuration(),
+      lectures: course.lectures,
+      level: course.level,
+      rating: course.rating,
+      addedAt: new Date()
+    }
+    
+    addToCart(cartItem)
+    
+    toast({
+      title: "Added to Cart",
+      description: `${course.title} has been added to your cart.`,
+    })
+  }
+
+  const handleGoToCart = () => {
+    router.push('/cart')
+  }
+
   const calculateTotalDuration = () => {
     let totalMinutes = 0
     course.chapters.forEach(chapter => {
@@ -178,6 +215,16 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
               </nav>
             </div>
             <div className="flex items-center space-x-4">
+              <div className="relative">
+                <Button 
+                  variant="ghost" 
+                  className="text-gray-700 hover:text-blue-600 hover:bg-blue-50"
+                  onClick={handleGoToCart}
+                >
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  Cart ({getCartItemCount()})
+                </Button>
+              </div>
               <Button variant="ghost" className="text-gray-700 hover:text-blue-600 hover:bg-blue-50">Log In</Button>
               <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
                 Sign Up
@@ -207,7 +254,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                 <div className="flex items-center space-x-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                   <span className="font-medium text-gray-900">{course.rating}</span>
-                  <span className="text-gray-500">({course.reviews.toLocaleString()} reviews)</span>
+                  <span className="text-gray-500">({course.reviewCount.toLocaleString()} reviews)</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Users className="h-4 w-4" />
@@ -307,9 +354,28 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                             <div className="text-xs text-gray-500 mt-1">{course.progress}% complete</div>
                           </div>
                         </>
+                      ) : isInCart(course.id) ? (
+                        <>
+                          <Button 
+                            className="w-full bg-green-600 hover:bg-green-700 text-white" 
+                            size="lg"
+                            onClick={handleGoToCart}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Go to Cart
+                          </Button>
+                          <div className="text-center text-sm text-green-600">
+                            ✓ Course added to cart
+                          </div>
+                        </>
                       ) : (
-                        <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white" size="lg">
-                          Enroll Now
+                        <Button 
+                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white" 
+                          size="lg"
+                          onClick={handleAddToCart}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add to Cart
                         </Button>
                       )}
                       <Button variant="outline" className="w-full border-blue-200 text-blue-600 hover:bg-blue-50">

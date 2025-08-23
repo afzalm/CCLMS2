@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -24,9 +24,12 @@ import {
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-export default function CourseOverviewPage({ params }: { params: { courseId: string } }) {
+export default function CourseOverviewPage({ params }: { params: Promise<{ courseId: string }> }) {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
+
+  // Unwrap the params Promise using React.use()
+  const { courseId } = use(params)
 
   useEffect(() => {
     // Get user from localStorage
@@ -38,7 +41,7 @@ export default function CourseOverviewPage({ params }: { params: { courseId: str
 
   // Mock course data - in real app, fetch from API
   const course = {
-    id: params.courseId,
+    id: courseId,
     title: "Complete React Development Course",
     description: "Master React from basics to advanced concepts including hooks, context, and modern patterns. Build real-world projects and learn industry best practices.",
     instructor: {
@@ -145,12 +148,12 @@ export default function CourseOverviewPage({ params }: { params: { courseId: str
   }
 
   const handleStartLesson = (lessonId: string) => {
-    router.push(`/learn/${params.courseId}/${lessonId}`)
+    router.push(`/learn/${courseId}/${lessonId}`)
   }
 
   const handleContinueLearning = () => {
     if (course.nextLesson) {
-      router.push(`/learn/${params.courseId}/${course.nextLesson.id}`)
+      router.push(`/learn/${courseId}/${course.nextLesson.id}`)
     }
   }
 
