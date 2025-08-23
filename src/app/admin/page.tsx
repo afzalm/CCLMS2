@@ -72,6 +72,23 @@ export default function AdminDashboard() {
   const [courseCurrentPage, setCourseCurrentPage] = useState(1)
   const [totalCourses, setTotalCourses] = useState(0)
   const coursesPerPage = 10
+  const [reports, setReports] = useState([])
+  const [reportsLoading, setReportsLoading] = useState(false)
+  const [reportCurrentPage, setReportCurrentPage] = useState(1)
+  const [totalReports, setTotalReports] = useState(0)
+  const [reportFilter, setReportFilter] = useState('all')
+  const [contentTypeFilter, setContentTypeFilter] = useState('all')
+  const [severityFilter, setSeverityFilter] = useState('all')
+  const reportsPerPage = 10
+  const [tickets, setTickets] = useState([])
+  const [ticketsLoading, setTicketsLoading] = useState(false)
+  const [ticketCurrentPage, setTicketCurrentPage] = useState(1)
+  const [totalTickets, setTotalTickets] = useState(0)
+  const [ticketStatusFilter, setTicketStatusFilter] = useState('all')
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState('all')
+  const [ticketCategoryFilter, setTicketCategoryFilter] = useState('all')
+  const [ticketAssignedFilter, setTicketAssignedFilter] = useState('all')
+  const ticketsPerPage = 10
 
   // Prevent hydration mismatch by only rendering after mount
   useEffect(() => {
@@ -269,6 +286,194 @@ export default function AdminDashboard() {
     }
   }
 
+  // Fetch reports data
+  const fetchReports = async (page = 1, status = 'all', contentType = 'all', severity = 'all') => {
+    setReportsLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: reportsPerPage.toString(),
+        status,
+        contentType,
+        severity
+      })
+      
+      const response = await fetch(`/api/admin/moderation?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setReports(data.data.reports)
+        setTotalReports(data.data.pagination.totalReports)
+      } else {
+        console.error('Failed to fetch reports')
+      }
+    } catch (error) {
+      console.error('Error fetching reports:', error)
+    } finally {
+      setReportsLoading(false)
+    }
+  }
+
+  // Handle moderation actions
+  const handleModerationAction = async (reportId: string, contentType: string, contentId: string, actionType: string, reason?: string) => {
+    try {
+      const response = await fetch('/api/admin/moderation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          reportId,
+          contentType,
+          contentId,
+          actionType,
+          reason,
+          notes: reason
+        })
+      })
+      
+      if (response.ok) {
+        // Refresh reports list
+        fetchReports(reportCurrentPage, reportFilter, contentTypeFilter, severityFilter)
+        // Show success message
+        alert(`${actionType} action applied successfully`)
+      } else {
+        alert(`Failed to apply ${actionType} action`)
+      }
+    } catch (error) {
+      console.error('Error applying moderation action:', error)
+      alert('Error applying moderation action')
+    }
+  }
+
+  // Handle report status update
+  const handleReportStatusUpdate = async (reportId: string, status: string, resolution?: string) => {
+    try {
+      const response = await fetch('/api/admin/moderation', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          reportId,
+          status,
+          resolution
+        })
+      })
+      
+      if (response.ok) {
+        // Refresh reports list
+        fetchReports(reportCurrentPage, reportFilter, contentTypeFilter, severityFilter)
+        // Show success message
+        alert(`Report ${status.toLowerCase()} successfully`)
+      } else {
+        alert(`Failed to ${status.toLowerCase()} report`)
+      }
+    } catch (error) {
+      console.error('Error updating report status:', error)
+      alert('Error updating report status')
+    }
+  }
+
+  // Fetch support tickets
+  const fetchTickets = async (page = 1, status = 'all', priority = 'all', category = 'all', assignedTo = 'all', search = '') => {
+    setTicketsLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: ticketsPerPage.toString(),
+        status,
+        priority,
+        category,
+        assignedTo,
+        search
+      })
+      
+      const response = await fetch(`/api/admin/support?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setTickets(data.data.tickets)
+        setTotalTickets(data.data.pagination.totalTickets)
+      } else {
+        console.error('Failed to fetch tickets')
+      }
+    } catch (error) {
+      console.error('Error fetching tickets:', error)
+    } finally {
+      setTicketsLoading(false)
+    }
+  }
+
+  // Handle ticket updates (status, priority, assignment)
+  const handleTicketUpdate = async (ticketId: string, updates: any) => {
+    try {
+      const response = await fetch('/api/admin/support', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          ticketId,
+          ...updates
+        })
+      })
+      
+      if (response.ok) {
+        // Refresh tickets list
+        fetchTickets(ticketCurrentPage, ticketStatusFilter, ticketPriorityFilter, ticketCategoryFilter, ticketAssignedFilter)
+        // Show success message
+        alert('Ticket updated successfully')
+      } else {
+        alert('Failed to update ticket')
+      }
+    } catch (error) {
+      console.error('Error updating ticket:', error)
+      alert('Error updating ticket')
+    }
+  }
+
+  // Handle adding response to ticket
+  const handleTicketResponse = async (ticketId: string, message: string, isInternal = false) => {
+    try {
+      const response = await fetch('/api/admin/support', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          ticketId,
+          message,
+          isInternal
+        })
+      })
+      
+      if (response.ok) {
+        // Refresh tickets list
+        fetchTickets(ticketCurrentPage, ticketStatusFilter, ticketPriorityFilter, ticketCategoryFilter, ticketAssignedFilter)
+        // Show success message
+        alert('Response added successfully')
+      } else {
+        alert('Failed to add response')
+      }
+    } catch (error) {
+      console.error('Error adding response:', error)
+      alert('Error adding response')
+    }
+  }
+
   // Fetch users when component mounts or filters change
   useEffect(() => {
     if (mounted) {
@@ -307,77 +512,49 @@ export default function AdminDashboard() {
     }
   }, [searchTerm, courseFilter, mounted])
 
+  // Fetch reports when component mounts or filters change
+  useEffect(() => {
+    if (mounted) {
+      fetchReports(reportCurrentPage, reportFilter, contentTypeFilter, severityFilter)
+    }
+  }, [mounted, reportCurrentPage])
+
+  // Debounced filter for reports
+  useEffect(() => {
+    if (mounted) {
+      const timeoutId = setTimeout(() => {
+        setReportCurrentPage(1) // Reset to first page when filtering
+        fetchReports(1, reportFilter, contentTypeFilter, severityFilter)
+      }, 300)
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [reportFilter, contentTypeFilter, severityFilter, mounted])
+
+  // Fetch tickets when component mounts or filters change
+  useEffect(() => {
+    if (mounted) {
+      fetchTickets(ticketCurrentPage, ticketStatusFilter, ticketPriorityFilter, ticketCategoryFilter, ticketAssignedFilter)
+    }
+  }, [mounted, ticketCurrentPage])
+
+  // Debounced filter for tickets
+  useEffect(() => {
+    if (mounted) {
+      const timeoutId = setTimeout(() => {
+        setTicketCurrentPage(1) // Reset to first page when filtering
+        fetchTickets(1, ticketStatusFilter, ticketPriorityFilter, ticketCategoryFilter, ticketAssignedFilter)
+      }, 300)
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [ticketStatusFilter, ticketPriorityFilter, ticketCategoryFilter, ticketAssignedFilter, mounted])
+
   // Consistent number formatting function
   const formatNumber = (num: number) => {
     if (!mounted) return num.toString() // Prevent hydration mismatch
     return new Intl.NumberFormat('en-US').format(num)
   }
-
-  const flaggedContent = [
-    {
-      id: "1",
-      type: "course",
-      title: "Digital Marketing Masterclass",
-      reportedBy: "John Doe",
-      reason: "Inappropriate content",
-      severity: "high",
-      reportedAt: "2024-10-31",
-      status: "pending"
-    },
-    {
-      id: "2",
-      type: "review",
-      title: "Review for Web Development Bootcamp",
-      reportedBy: "Jane Smith",
-      reason: "Spam content",
-      severity: "medium",
-      reportedAt: "2024-10-30",
-      status: "under_review"
-    },
-    {
-      id: "3",
-      type: "user",
-      title: "User: Mike Johnson",
-      reportedBy: "Sarah Wilson",
-      reason: "Harassment",
-      severity: "high",
-      reportedAt: "2024-10-29",
-      status: "resolved"
-    }
-  ]
-
-  const supportTickets = [
-    {
-      id: "1",
-      user: "Alice Brown",
-      subject: "Payment not processed",
-      category: "billing",
-      priority: "high",
-      status: "open",
-      created: "2024-11-01",
-      assignedTo: "Support Team"
-    },
-    {
-      id: "2",
-      user: "Bob Davis",
-      subject: "Course access issue",
-      category: "technical",
-      priority: "medium",
-      status: "in_progress",
-      created: "2024-10-31",
-      assignedTo: "Tech Support"
-    },
-    {
-      id: "3",
-      user: "Carol White",
-      subject: "Refund request",
-      category: "billing",
-      priority: "low",
-      status: "resolved",
-      created: "2024-10-30",
-      assignedTo: "Billing Team"
-    }
-  ]
 
   const revenueData = platformStats.revenueData || [
     { month: "Jun", revenue: 125000 },
@@ -1050,49 +1227,204 @@ export default function AdminDashboard() {
                 <CardDescription>Manage flagged content and user reports</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <Select value={reportFilter} onValueChange={setReportFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Reports</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="under_review">Under Review</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="dismissed">Dismissed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={contentTypeFilter} onValueChange={setContentTypeFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Content type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Content</SelectItem>
+                      <SelectItem value="course">Courses</SelectItem>
+                      <SelectItem value="review">Reviews</SelectItem>
+                      <SelectItem value="user">Users</SelectItem>
+                      <SelectItem value="lesson">Lessons</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Severity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Severity</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-4">
-                  {flaggedContent.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                          <AlertTriangle className="h-5 w-5 text-red-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{item.title}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Reported by {item.reportedBy} • {item.reportedAt}
-                          </p>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant="secondary">{item.type}</Badge>
-                            {getPriorityBadge(item.severity)}
-                            {getStatusBadge(item.status)}
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Reason: {item.reason}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="h-3 w-3 mr-1" />
-                          View
-                        </Button>
-                        {item.status === "pending" && (
-                          <>
-                            <Button size="sm" variant="outline">
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Dismiss
-                            </Button>
-                            <Button size="sm">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Approve Action
-                            </Button>
-                          </>
-                        )}
+                  {reportsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-muted-foreground">Loading reports...</p>
                       </div>
                     </div>
-                  ))}
+                  ) : reports.length === 0 ? (
+                    <div className="text-center py-8">
+                      <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No reports found</h3>
+                      <p className="text-sm text-muted-foreground">Try adjusting your filter criteria.</p>
+                    </div>
+                  ) : (
+                    reports.map((report: any) => (
+                      <div key={report.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            report.severity === 'HIGH' || report.severity === 'CRITICAL' 
+                              ? 'bg-red-100' 
+                              : report.severity === 'MEDIUM' 
+                                ? 'bg-yellow-100' 
+                                : 'bg-blue-100'
+                          }`}>
+                            <AlertTriangle className={`h-5 w-5 ${
+                              report.severity === 'HIGH' || report.severity === 'CRITICAL' 
+                                ? 'text-red-600' 
+                                : report.severity === 'MEDIUM' 
+                                  ? 'text-yellow-600' 
+                                  : 'text-blue-600'
+                            }`} />
+                          </div>
+                          <div>
+                            <h4 className="font-medium">
+                              {report.contentDetails?.title || report.contentDetails?.name || `${report.contentType} Content`}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              Reported by {report.reporter?.name || 'Unknown'} • {new Date(report.reportedAt).toLocaleDateString()}
+                            </p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge variant="secondary">{report.contentType.toLowerCase()}</Badge>
+                              {getPriorityBadge(report.severity.toLowerCase())}
+                              {getStatusBadge(report.status.toLowerCase())}
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Reason: {report.reason}
+                            </p>
+                            {report.description && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Details: {report.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              // Open content in new tab based on type
+                              const contentId = report.contentId
+                              switch (report.contentType) {
+                                case 'COURSE':
+                                  window.open(`/courses/${contentId}`, '_blank')
+                                  break
+                                case 'USER':
+                                  window.open(`/profile/${contentId}`, '_blank')
+                                  break
+                                default:
+                                  alert('Content preview not available')
+                              }
+                            }}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
+                          {report.status === "PENDING" && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to dismiss this report?')) {
+                                    handleReportStatusUpdate(report.id, 'DISMISSED', 'Report dismissed by admin')
+                                  }
+                                }}
+                              >
+                                <XCircle className="h-3 w-3 mr-1" />
+                                Dismiss
+                              </Button>
+                              <Button 
+                                size="sm"
+                                onClick={() => {
+                                  const actionType = prompt('What action would you like to take? (WARNING, SUSPEND, BAN, DELETE, HIDE, FLAG)');
+                                  if (actionType && ['WARNING', 'SUSPEND', 'BAN', 'DELETE', 'HIDE', 'FLAG'].includes(actionType.toUpperCase())) {
+                                    const reason = prompt('Please provide a reason for this action:');
+                                    if (reason) {
+                                      handleModerationAction(report.id, report.contentType, report.contentId, actionType.toUpperCase(), reason)
+                                    }
+                                  } else if (actionType) {
+                                    alert('Invalid action type. Please use: WARNING, SUSPEND, BAN, DELETE, HIDE, or FLAG')
+                                  }
+                                }}
+                              >
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Take Action
+                              </Button>
+                            </>
+                          )}
+                          {report.status === "UNDER_REVIEW" && (
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                const resolution = prompt('Please provide resolution notes:');
+                                if (resolution) {
+                                  handleReportStatusUpdate(report.id, 'RESOLVED', resolution)
+                                }
+                              }}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Resolve
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
+                
+                {/* Pagination */}
+                {!reportsLoading && reports.length > 0 && (
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {((reportCurrentPage - 1) * reportsPerPage) + 1} to {Math.min(reportCurrentPage * reportsPerPage, totalReports)} of {totalReports} reports
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setReportCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={reportCurrentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm">
+                        Page {reportCurrentPage} of {Math.ceil(totalReports / reportsPerPage)}
+                      </span>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setReportCurrentPage(prev => prev + 1)}
+                        disabled={reportCurrentPage >= Math.ceil(totalReports / reportsPerPage)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1104,40 +1436,202 @@ export default function AdminDashboard() {
                 <CardDescription>Manage user support requests and issues</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <Select value={ticketStatusFilter} onValueChange={setTicketStatusFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="waiting_for_user">Waiting for User</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={ticketPriorityFilter} onValueChange={setTicketPriorityFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={ticketCategoryFilter} onValueChange={setTicketCategoryFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="technical">Technical</SelectItem>
+                      <SelectItem value="billing">Billing</SelectItem>
+                      <SelectItem value="content">Content</SelectItem>
+                      <SelectItem value="account">Account</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={ticketAssignedFilter} onValueChange={setTicketAssignedFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Assignment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tickets</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      <SelectItem value={user?.id || ''}>Assigned to Me</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-4">
-                  {supportTickets.map((ticket) => (
-                    <div key={ticket.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <MessageSquare className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{ticket.subject}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {ticket.user} • {ticket.created}
-                          </p>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant="secondary">{ticket.category}</Badge>
-                            {getPriorityBadge(ticket.priority)}
-                            {getStatusBadge(ticket.status)}
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Assigned to: {ticket.assignedTo}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="h-3 w-3 mr-1" />
-                          View Details
-                        </Button>
-                        {ticket.status === "open" && (
-                          <Button size="sm">Take Ownership</Button>
-                        )}
+                  {ticketsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-muted-foreground">Loading tickets...</p>
                       </div>
                     </div>
-                  ))}
+                  ) : tickets.length === 0 ? (
+                    <div className="text-center py-8">
+                      <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No tickets found</h3>
+                      <p className="text-sm text-muted-foreground">Try adjusting your filter criteria.</p>
+                    </div>
+                  ) : (
+                    tickets.map((ticket: any) => (
+                      <div key={ticket.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            ticket.priority === 'URGENT' || ticket.priority === 'HIGH' 
+                              ? 'bg-red-100' 
+                              : ticket.priority === 'MEDIUM' 
+                                ? 'bg-yellow-100' 
+                                : 'bg-blue-100'
+                          }`}>
+                            <MessageSquare className={`h-5 w-5 ${
+                              ticket.priority === 'URGENT' || ticket.priority === 'HIGH' 
+                                ? 'text-red-600' 
+                                : ticket.priority === 'MEDIUM' 
+                                  ? 'text-yellow-600' 
+                                  : 'text-blue-600'
+                            }`} />
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{ticket.subject}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {ticket.user?.name || 'Unknown User'} • {new Date(ticket.createdAt).toLocaleDateString()}
+                            </p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge variant="secondary">{ticket.category.toLowerCase()}</Badge>
+                              {getPriorityBadge(ticket.priority.toLowerCase())}
+                              {getStatusBadge(ticket.status.toLowerCase().replace('_', ' '))}
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {ticket.assignee ? `Assigned to: ${ticket.assignee.name}` : 'Unassigned'}
+                            </p>
+                            {ticket.latestMessage && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Latest: {ticket.latestMessage.message.substring(0, 50)}...
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => window.open(`/admin/support/${ticket.id}`, '_blank')}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View Details
+                          </Button>
+                          {ticket.status === "OPEN" && !ticket.assignee && (
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('Take ownership of this ticket?')) {
+                                  handleTicketUpdate(ticket.id, { 
+                                    assignedTo: user?.id,
+                                    status: 'IN_PROGRESS'
+                                  })
+                                }
+                              }}
+                            >
+                              <User className="h-3 w-3 mr-1" />
+                              Take Ownership
+                            </Button>
+                          )}
+                          {(ticket.status === "OPEN" || ticket.status === "IN_PROGRESS") && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                const response = prompt('Add response to ticket:');
+                                if (response) {
+                                  handleTicketResponse(ticket.id, response, false)
+                                }
+                              }}
+                            >
+                              <MessageSquare className="h-3 w-3 mr-1" />
+                              Respond
+                            </Button>
+                          )}
+                          {ticket.status === "IN_PROGRESS" && (
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                const resolution = prompt('Please provide resolution notes:');
+                                if (resolution) {
+                                  handleTicketUpdate(ticket.id, { 
+                                    status: 'RESOLVED',
+                                    resolution
+                                  })
+                                }
+                              }}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Resolve
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
+                
+                {/* Pagination */}
+                {!ticketsLoading && tickets.length > 0 && (
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {((ticketCurrentPage - 1) * ticketsPerPage) + 1} to {Math.min(ticketCurrentPage * ticketsPerPage, totalTickets)} of {totalTickets} tickets
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setTicketCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={ticketCurrentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm">
+                        Page {ticketCurrentPage} of {Math.ceil(totalTickets / ticketsPerPage)}
+                      </span>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setTicketCurrentPage(prev => prev + 1)}
+                        disabled={ticketCurrentPage >= Math.ceil(totalTickets / ticketsPerPage)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
