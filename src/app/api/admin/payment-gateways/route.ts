@@ -1,8 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { promises as fs } from 'fs'
+import path from 'path'
 
-// Mock payment gateway data storage
-// In production, this would be stored in your database
-let paymentGateways: any[] = []
+// File-based storage for payment gateways (persists across server restarts)
+const STORAGE_FILE = path.join(process.cwd(), 'data', 'payment-gateways.json')
+
+// Ensure data directory exists
+async function ensureDataDirectory() {
+  const dataDir = path.dirname(STORAGE_FILE)
+  try {
+    await fs.access(dataDir)
+  } catch {
+    await fs.mkdir(dataDir, { recursive: true })
+  }
+}
+
+// Load payment gateways from file
+async function loadPaymentGateways(): Promise<any[]> {
+  try {
+    await ensureDataDirectory()
+    const data = await fs.readFile(STORAGE_FILE, 'utf8')
+    return JSON.parse(data)
+  } catch (error) {
+    // File doesn't exist or is invalid, return empty array
+    return []
+  }
+}
+
+// Save payment gateways to file
+async function savePaymentGateways(gateways: any[]): Promise<void> {
+  try {
+    await ensureDataDirectory()
+    await fs.writeFile(STORAGE_FILE, JSON.stringify(gateways, null, 2), 'utf8')
+  } catch (error) {
+    console.error('Error saving payment gateways:', error)
+    throw error
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +50,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Return existing payment gateways
+    // Load and return existing payment gateways
+    const paymentGateways = await loadPaymentGateways()
     return NextResponse.json({
       gateways: paymentGateways
     })
@@ -61,6 +96,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Load existing gateways
+    const paymentGateways = await loadPaymentGateways()
+    
     // Check if gateway already exists
     const existingGateway = paymentGateways.find(g => g.name === name)
     if (existingGateway) {
@@ -86,6 +124,9 @@ export async function POST(request: NextRequest) {
     }
 
     paymentGateways.push(newGateway)
+    
+    // Save to file
+    await savePaymentGateways(paymentGateways)
 
     return NextResponse.json({
       success: true,
@@ -130,6 +171,9 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Load existing gateways
+    const paymentGateways = await loadPaymentGateways()
+    
     // Find and update the gateway
     const gatewayIndex = paymentGateways.findIndex(g => g.id === id)
     if (gatewayIndex === -1) {
@@ -150,6 +194,9 @@ export async function PUT(request: NextRequest) {
       ...(configuration !== undefined && { configuration }),
       updatedAt: new Date().toISOString()
     }
+    
+    // Save to file
+    await savePaymentGateways(paymentGateways)
 
     return NextResponse.json({
       success: true,
@@ -187,6 +234,9 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    // Load existing gateways
+    const paymentGateways = await loadPaymentGateways()
+    
     // Find and remove the gateway
     const gatewayIndex = paymentGateways.findIndex(g => g.id === id)
     if (gatewayIndex === -1) {
@@ -197,6 +247,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     const deletedGateway = paymentGateways.splice(gatewayIndex, 1)[0]
+    
+    // Save to file
+    await savePaymentGateways(paymentGateways)
 
     return NextResponse.json({
       success: true,

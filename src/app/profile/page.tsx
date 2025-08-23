@@ -26,7 +26,8 @@ import {
   Calendar,
   MapPin,
   Globe,
-  Phone
+  Phone,
+  X
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -48,6 +49,9 @@ export default function ProfilePage() {
     website: "",
     avatar: null as File | null
   })
+
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarProgress, setAvatarProgress] = useState(0)
 
   const [securityData, setSecurityData] = useState({
     currentPassword: "",
@@ -206,11 +210,89 @@ export default function ProfilePage() {
     }
   }
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setProfileData(prev => ({ ...prev, avatar: file }))
-      // In a real app, you'd upload the file here
+    if (!file) return
+
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please select a valid image file (JPEG, PNG, or WebP)')
+      return
+    }
+
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      alert('File size must be less than 2MB')
+      return
+    }
+
+    setUploadingAvatar(true)
+    setAvatarProgress(0)
+    
+    try {
+      const formData = new FormData()
+      formData.append('avatar', file)
+      formData.append('userId', user.id)
+      formData.append('replaceExisting', 'true')
+
+      const response = await fetch('/api/upload/avatar', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update user data with new avatar URL
+        const updatedUser = { ...user, avatar: result.data.avatar.url }
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+        setUser(updatedUser)
+        
+        alert('Avatar updated successfully!')
+      } else {
+        alert('Failed to upload avatar: ' + result.error)
+      }
+    } catch (error) {
+      console.error('Avatar upload error:', error)
+      alert('Failed to upload avatar. Please try again.')
+    } finally {
+      setUploadingAvatar(false)
+      setAvatarProgress(0)
+      // Clear the file input
+      e.target.value = ''
+    }
+  }
+
+  const handleAvatarDelete = async () => {
+    if (!user?.avatar || !user.id) return
+
+    if (!confirm('Are you sure you want to remove your profile picture?')) {
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/upload/avatar?userId=${user.id}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update user data to remove avatar
+        const updatedUser = { ...user, avatar: null }
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+        setUser(updatedUser)
+        
+        alert('Profile picture removed successfully!')
+      } else {
+        alert('Failed to remove profile picture: ' + result.error)
+      }
+    } catch (error) {
+      console.error('Avatar delete error:', error)
+      alert('Failed to remove profile picture. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -272,24 +354,48 @@ export default function ProfilePage() {
               <CardContent className="p-6 text-center">
                 <div className="relative inline-block mb-4">
                   <Avatar className="h-24 w-24">
-                    <AvatarImage src={user.avatar} />
+                    <AvatarImage 
+                      src={user.avatar ? (user.avatar.startsWith('/uploads/') ? `/api/files/${user.avatar.substring(9)}` : user.avatar) : undefined} 
+                    />
                     <AvatarFallback className="text-2xl bg-primary/10 text-primary">
                       {user.name?.split(' ').map((n: string) => n[0]).join('') || 'U'}
                     </AvatarFallback>
                   </Avatar>
-                  <Button
-                    size="sm"
-                    className="absolute bottom-0 right-0 rounded-full h-8 w-8 p-0"
-                    onClick={() => document.getElementById('avatar-upload')?.click()}
-                  >
-                    <Camera className="h-4 w-4" />
-                  </Button>
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                      <div className="text-white text-xs font-medium">
+                        {avatarProgress > 0 ? `${avatarProgress}%` : 'Uploading...'}
+                      </div>
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 right-0 flex space-x-1">
+                    <Button
+                      size="sm"
+                      className="rounded-full h-8 w-8 p-0"
+                      onClick={() => document.getElementById('avatar-upload')?.click()}
+                      disabled={uploadingAvatar}
+                    >
+                      <Camera className="h-4 w-4" />
+                    </Button>
+                    {user.avatar && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="rounded-full h-8 w-8 p-0"
+                        onClick={handleAvatarDelete}
+                        disabled={uploadingAvatar || isLoading}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                   <input
                     id="avatar-upload"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={handleAvatarUpload}
                     className="hidden"
+                    disabled={uploadingAvatar}
                   />
                 </div>
                 

@@ -36,6 +36,9 @@ export default function CreateCoursePage() {
   const [user, setUser] = useState<any>(null)
   const [courseId, setCourseId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
+  const [uploadingVideos, setUploadingVideos] = useState<Record<string, boolean>>({})
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
   const [courseData, setCourseData] = useState({
     title: "",
     subtitle: "",
@@ -152,10 +155,114 @@ export default function CreateCoursePage() {
     setChapters(updatedChapters)
   }
 
-  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleThumbnailUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setCourseData(prev => ({ ...prev, thumbnail: file }))
+    if (!file) return
+
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please select a valid image file (JPEG, PNG, or WebP)')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      alert('Thumbnail size must be less than 5MB')
+      return
+    }
+
+    // First ensure course is saved as draft
+    if (!courseId) {
+      alert('Please save your course as draft first before uploading thumbnail')
+      return
+    }
+
+    setUploadingThumbnail(true)
+    
+    try {
+      const formData = new FormData()
+      formData.append('thumbnail', file)
+      formData.append('courseId', courseId)
+      formData.append('replaceExisting', 'true')
+
+      const response = await fetch('/api/upload/thumbnail', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setCourseData(prev => ({ ...prev, thumbnail: file }))
+        alert('Thumbnail uploaded successfully!')
+      } else {
+        alert('Failed to upload thumbnail: ' + result.error)
+      }
+    } catch (error) {
+      console.error('Thumbnail upload error:', error)
+      alert('Failed to upload thumbnail. Please try again.')
+    } finally {
+      setUploadingThumbnail(false)
+      // Clear the file input
+      e.target.value = ''
+    }
+  }
+
+  const handleVideoUpload = async (chapterIndex: number, lessonIndex: number, file: File) => {
+    if (!file) return
+
+    // Validate file type and size
+    const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime']
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please select a valid video file (MP4, WebM, or QuickTime)')
+      return
+    }
+
+    if (file.size > 500 * 1024 * 1024) { // 500MB limit
+      alert('Video size must be less than 500MB')
+      return
+    }
+
+    const lesson = chapters[chapterIndex].lessons[lessonIndex]
+    if (!lesson.id) {
+      alert('Please save the lesson first before uploading video')
+      return
+    }
+
+    const uploadKey = `${chapterIndex}-${lessonIndex}`
+    setUploadingVideos(prev => ({ ...prev, [uploadKey]: true }))
+    setUploadProgress(prev => ({ ...prev, [uploadKey]: 0 }))
+    
+    try {
+      const formData = new FormData()
+      formData.append('video', file)
+      formData.append('lessonId', lesson.id)
+      formData.append('courseId', courseId || '')
+      formData.append('replaceExisting', 'true')
+
+      const response = await fetch('/api/upload/video', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update lesson with video file
+        const updatedChapters = [...chapters]
+        updatedChapters[chapterIndex].lessons[lessonIndex].videoFile = file
+        setChapters(updatedChapters)
+        
+        alert('Video uploaded successfully!')
+      } else {
+        alert('Failed to upload video: ' + result.error)
+      }
+    } catch (error) {
+      console.error('Video upload error:', error)
+      alert('Failed to upload video. Please try again.')
+    } finally {
+      setUploadingVideos(prev => ({ ...prev, [uploadKey]: false }))
+      setUploadProgress(prev => ({ ...prev, [uploadKey]: 0 }))
     }
   }
 
@@ -482,25 +589,57 @@ export default function CreateCoursePage() {
                   <div className="space-y-2">
                     <Label>Course Thumbnail</Label>
                     <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Upload a course thumbnail (recommended: 1280x720)
-                      </p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleThumbnailUpload}
-                        className="hidden"
-                        id="thumbnail-upload"
-                      />
-                      <Button variant="outline" onClick={() => document.getElementById('thumbnail-upload')?.click()}>
-                        Choose File
-                      </Button>
-                      {courseData.thumbnail && (
-                        <p className="text-sm text-green-600 mt-2">
-                          ✓ {courseData.thumbnail.name}
-                        </p>
+                      {uploadingThumbnail ? (
+                        <div className="space-y-2">
+                          <Upload className="h-8 w-8 mx-auto mb-2 text-primary animate-pulse" />
+                          <p className="text-sm text-primary font-medium">Uploading thumbnail...</p>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div className="bg-primary h-2 rounded-full transition-all duration-300" style={{width: '50%'}}></div>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Upload a course thumbnail (recommended: 1280x720, max 5MB)
+                          </p>
+                          <p className="text-xs text-muted-foreground mb-3">
+                            Supported formats: JPEG, PNG, WebP
+                          </p>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={handleThumbnailUpload}
+                            className="hidden"
+                            id="thumbnail-upload"
+                            disabled={uploadingThumbnail || !courseId}
+                          />
+                          <Button 
+                            variant="outline" 
+                            onClick={() => document.getElementById('thumbnail-upload')?.click()}
+                            disabled={uploadingThumbnail || !courseId}
+                          >
+                            Choose File
+                          </Button>
+                          {!courseId && (
+                            <p className="text-xs text-orange-600 mt-2">
+                              💡 Save as draft first to enable thumbnail upload
+                            </p>
+                          )}
+                        </>
                       )}
+                      {courseData.thumbnail && (
+                        <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded">
+                          <p className="text-sm text-green-700 font-medium">
+                            ✓ {courseData.thumbnail.name}
+                          </p>
+                          <p className="text-xs text-green-600">
+                            Size: {(courseData.thumbnail.size / (1024 * 1024)).toFixed(2)} MB
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                     </div>
                   </div>
 
@@ -652,9 +791,93 @@ export default function CreateCoursePage() {
                                 }}
                               />
 
-                              <div className="flex items-center space-x-2">
-                                <Video className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">Video upload will be available after saving</span>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-sm font-medium flex items-center space-x-2">
+                                    <Video className="h-4 w-4 text-primary" />
+                                    <span>Lesson Video</span>
+                                  </label>
+                                  {lesson.videoFile && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Video uploaded
+                                    </Badge>
+                                  )}
+                                </div>
+                                
+                                {uploadingVideos[`${chapterIndex}-${lessonIndex}`] ? (
+                                  <div className="border-2 border-dashed border-primary/25 rounded-lg p-4 text-center">
+                                    <Video className="h-6 w-6 mx-auto mb-2 text-primary animate-pulse" />
+                                    <p className="text-sm text-primary font-medium mb-2">Uploading video...</p>
+                                    <div className="w-full bg-muted rounded-full h-2">
+                                      <div 
+                                        className="bg-primary h-2 rounded-full transition-all duration-300" 
+                                        style={{width: `${uploadProgress[`${chapterIndex}-${lessonIndex}`] || 0}%`}}
+                                      ></div>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {uploadProgress[`${chapterIndex}-${lessonIndex}`] || 0}% complete
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
+                                    <Video className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                                    <p className="text-sm text-muted-foreground mb-2">
+                                      Upload lesson video (max 500MB)
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mb-3">
+                                      Supported: MP4, WebM, QuickTime
+                                    </p>
+                                    <input
+                                      type="file"
+                                      accept="video/mp4,video/webm,video/quicktime"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file) {
+                                          handleVideoUpload(chapterIndex, lessonIndex, file)
+                                        }
+                                      }}
+                                      className="hidden"
+                                      id={`video-upload-${chapterIndex}-${lessonIndex}`}
+                                      disabled={!courseId || uploadingVideos[`${chapterIndex}-${lessonIndex}`]}
+                                    />
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={() => {
+                                        if (!courseId) {
+                                          alert('Please save course as draft first')
+                                          return
+                                        }
+                                        document.getElementById(`video-upload-${chapterIndex}-${lessonIndex}`)?.click()
+                                      }}
+                                      disabled={!courseId || uploadingVideos[`${chapterIndex}-${lessonIndex}`]}
+                                    >
+                                      {!courseId ? 'Save course first' : 'Choose Video'}
+                                    </Button>
+                                  </div>
+                                )}
+                                
+                                {lesson.videoFile && (
+                                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                                    <p className="text-sm text-green-700 font-medium">
+                                      ✓ {lesson.videoFile.name}
+                                    </p>
+                                    <p className="text-xs text-green-600">
+                                      Size: {(lesson.videoFile.size / (1024 * 1024)).toFixed(2)} MB
+                                    </p>
+                                  </div>
+                                )}
+                                
+                                <Input
+                                  placeholder="Duration (minutes)"
+                                  type="number"
+                                  value={lesson.duration}
+                                  onChange={(e) => {
+                                    const updatedChapters = [...chapters]
+                                    updatedChapters[chapterIndex].lessons[lessonIndex].duration = e.target.value
+                                    setChapters(updatedChapters)
+                                  }}
+                                />
                               </div>
                             </div>
                           ))}

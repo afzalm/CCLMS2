@@ -35,3 +35,6 @@ coverage/
 prisma/migrations/
 # SQLite database files
 /db/*.db*
+
+# Payment gateway data (contains sensitive credentials)
+/data/

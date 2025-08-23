@@ -20,7 +20,11 @@ model User {
   password    String?
   role        Role     @default(STUDENT)
   avatar      String?
+  avatarFileId String? // Reference to UploadedFile
   bio         String?
+  phone       String?
+  location    String?
+  website     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -38,6 +42,8 @@ model User {
   supportTickets SupportTicket[] @relation("TicketsCreated")
   assignedTickets SupportTicket[] @relation("TicketsAssigned")
   ticketMessages TicketMessage[] @relation("TicketMessagesSent")
+  avatarFile  UploadedFile? @relation("UserAvatarFile", fields: [avatarFileId], references: [id])
+  uploadedFiles UploadedFile[] @relation("FileUploader")
 
   @@map("users")
 }
@@ -45,15 +51,20 @@ model User {
 model Course {
   id          String   @id @default(cuid())
   title       String
+  subtitle    String?
   description String?
   price       Float    @default(0)
   thumbnail   String?
+  thumbnailFileId String? // Reference to UploadedFile
   status      CourseStatus @default(DRAFT)
   level       DifficultyLevel @default(BEGINNER)
   language    String   @default("en")
   categoryId  String?
   trainerId   String
   publishedAt DateTime?
+  learningObjectives Json? // JSON array
+  requirements Json? // JSON array
+  targetAudience String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -65,6 +76,7 @@ model Course {
   reviews     Review[]
   chapters    Chapter[]
   payments    Payment[]
+  thumbnailFile UploadedFile? @relation("CourseThumbnailFile", fields: [thumbnailFileId], references: [id])
 
   @@map("courses")
 }
@@ -99,7 +111,8 @@ model Lesson {
   title       String
   description String?
   videoUrl    String?
-  duration    Int?     // in seconds
+  videoFileId String? // Reference to UploadedFile
+  duration    Int?     // in minutes
   content     String?  // text content
   order       Int
   chapterId   String
@@ -113,6 +126,7 @@ model Lesson {
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   progress    Progress[]
   quiz        Quiz?
+  videoFile   UploadedFile? @relation("LessonVideoFile", fields: [videoFileId], references: [id])
 
   @@map("lessons")
 }
@@ -207,15 +221,16 @@ model Enrollment {
 }
 
 model Progress {
-  id         String   @id @default(cuid())
-  studentId  String
-  lessonId   String
-  enrollmentId String?
-  watchTime  Int      @default(0) // in seconds
-  completed  Boolean  @default(false)
-  lastPosition Int?   // video position in seconds
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id               String   @id @default(cuid())
+  studentId        String
+  lessonId         String
+  enrollmentId     String?
+  progressPercentage Float  @default(0) // 0-100
+  watchTime        Int      @default(0) // in seconds
+  completed        Boolean  @default(false)
+  lastPosition     Int?     // video position in seconds
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   // Relations
   student    User     @relation(fields: [studentId], references: [id])
@@ -267,8 +282,8 @@ model Payment {
 model ActivityLog {
   id           String   @id @default(cuid())
   userId       String
-  activityType String   // "COURSE_PUBLISHED", "COURSE_CREATED", "ENROLLMENT_RECEIVED", etc.
-  description  String
+  action       String   // "COURSE_PUBLISHED", "AVATAR_UPDATED", "LESSON_VIDEO_UPLOADED", etc.
+  details      String
   metadata     Json?    // Additional data related to the activity
   createdAt    DateTime @default(now())
 
@@ -276,6 +291,39 @@ model ActivityLog {
   user         User     @relation(fields: [userId], references: [id])
 
   @@map("activity_logs")
+}
+
+model UploadedFile {
+  id               String   @id @default(cuid())
+  originalName     String   // Original filename as uploaded
+  fileName         String   // Secure filename on disk
+  filePath         String   // Full path relative to public directory
+  mimeType         String   // File MIME type
+  fileSize         Int      // File size in bytes
+  category         FileCategory // AVATAR, THUMBNAIL, VIDEO, DOCUMENT
+  uploadedBy       String   // User who uploaded the file
+  entityType       String?  // COURSE, LESSON, USER (what this file belongs to)
+  entityId         String?  // ID of the entity this file belongs to
+  isActive         Boolean  @default(true) // For soft deletion
+  metadata         Json?    // Additional file metadata (dimensions, duration, etc.)
+  virusScanStatus  VirusScanStatus @default(PENDING)
+  virusScanResult  String?  // Scan result details
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime? // For soft deletion tracking
+
+  // Relations
+  uploader         User     @relation("FileUploader", fields: [uploadedBy], references: [id])
+  userAvatars      User[]   @relation("UserAvatarFile")
+  courseThumbnails Course[] @relation("CourseThumbnailFile")
+  lessonVideos     Lesson[] @relation("LessonVideoFile")
+
+  @@index([category])
+  @@index([uploadedBy])
+  @@index([entityType, entityId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("uploaded_files")
 }
 
 model SSOProvider {
@@ -469,4 +517,20 @@ enum TicketStatus {
   WAITING_FOR_USER
   RESOLVED
   CLOSED
+}
+
+enum FileCategory {
+  AVATAR
+  THUMBNAIL
+  VIDEO
+  DOCUMENT
+  RESOURCE
+}
+
+enum VirusScanStatus {
+  PENDING
+  SCANNING
+  CLEAN
+  INFECTED
+  ERROR
 }

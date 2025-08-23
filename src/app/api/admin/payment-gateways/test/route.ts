@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { promises as fs } from 'fs'
+import path from 'path'
 
-// Mock payment gateway data storage
-// In production, this would be stored in your database
-let paymentGateways: any[] = []
+// File-based storage for payment gateways (same as main route)
+const STORAGE_FILE = path.join(process.cwd(), 'data', 'payment-gateways.json')
+
+// Load payment gateways from file
+async function loadPaymentGateways(): Promise<any[]> {
+  try {
+    const data = await fs.readFile(STORAGE_FILE, 'utf8')
+    return JSON.parse(data)
+  } catch (error) {
+    // File doesn't exist or is invalid, return empty array
+    return []
+  }
+}
 
 // Mock function to test Stripe connection
 async function testStripeConnection(gateway: any) {
@@ -68,6 +80,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Load gateways from file
+    const paymentGateways = await loadPaymentGateways()
+    
     // Find the gateway
     const gateway = paymentGateways.find(g => g.id === id)
     if (!gateway) {
