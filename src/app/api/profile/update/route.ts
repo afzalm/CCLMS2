@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 import { z } from "zod"
+import { verifyAccessToken, extractTokenFromRequest } from '@/lib/jwt'
 
 const prisma = new PrismaClient()
 
@@ -16,10 +17,36 @@ const updateProfileSchema = z.object({
 
 export async function PUT(request: NextRequest) {
   try {
+    // Verify authentication
+    const token = extractTokenFromRequest(request)
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const decoded = await verifyAccessToken(token)
+    if (!decoded || !decoded.userId) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
     const body = await request.json()
     
     // Validate the input
     const validatedData = updateProfileSchema.parse(body)
+    
+    // Ensure user can only update their own profile (unless admin)
+    if (decoded.role !== 'ADMIN' && validatedData.userId !== decoded.userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Can only update your own profile' },
+        { status: 403 }
+      )
+    }
     
     // Update user profile in database
     const updatedUser = await prisma.user.update({
@@ -56,7 +83,7 @@ export async function PUT(request: NextRequest) {
         { 
           success: false,
           error: "Validation failed", 
-          details: error.errors 
+          details: error.issues 
         },
         { status: 400 }
       )

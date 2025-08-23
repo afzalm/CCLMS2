@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyAccessToken } from '@/lib/jwt'
+import { verifyAccessToken, extractTokenFromRequest } from '@/lib/jwt'
 import { db } from '@/lib/db'
 import { 
   FILE_TYPES, 
@@ -24,11 +24,8 @@ const avatarUploadSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.startsWith('Bearer ') 
-      ? authHeader.substring(7) 
-      : request.cookies.get('token')?.value
+    // Verify authentication using the same pattern as middleware
+    const token = extractTokenFromRequest(request)
 
     if (!token) {
       return NextResponse.json(
@@ -37,7 +34,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const decoded = verifyAccessToken(token)
+    const decoded = await verifyAccessToken(token)
     if (!decoded || !decoded.userId) {
       return NextResponse.json(
         { success: false, error: 'Invalid token' },
@@ -181,7 +178,7 @@ export async function POST(request: NextRequest) {
         { 
           success: false, 
           error: 'Validation failed',
-          details: error.errors.map(e => e.message)
+          details: error.issues.map(e => e.message)
         },
         { status: 400 }
       )
@@ -199,11 +196,8 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // Verify authentication
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.startsWith('Bearer ') 
-      ? authHeader.substring(7) 
-      : request.cookies.get('token')?.value
+    // Verify authentication using the same pattern as middleware
+    const token = extractTokenFromRequest(request)
 
     if (!token) {
       return NextResponse.json(
@@ -212,7 +206,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const decoded = verifyAccessToken(token)
+    const decoded = await verifyAccessToken(token)
     if (!decoded || !decoded.userId) {
       return NextResponse.json(
         { success: false, error: 'Invalid token' },
@@ -329,7 +323,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    let fileInfo = null
+    let fileInfo: any = null
     if (user.avatar && user.avatar.startsWith('/uploads/avatars/')) {
       fileInfo = await getFileInfo(user.avatar.substring(1))
     }
