@@ -73,37 +73,64 @@ export default function StudentDashboard() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Get user from localStorage
+        // Check authentication first
         const storedUser = localStorage.getItem('user')
-        if (storedUser) {
-          const userData = JSON.parse(storedUser)
-          setUser(userData)
-          console.log('👤 User loaded for dashboard:', { id: userData.id, email: userData.email, name: userData.name })
+        if (!storedUser) {
+          console.warn('⚠️ No user found in localStorage, redirecting to login')
+          const currentPath = window.location.pathname
+          window.location.href = `/auth/login?redirect=${encodeURIComponent(currentPath)}`
+          return
+        }
 
-          // Fetch dashboard data from API
-          const response = await fetch(`/api/student/dashboard?userId=${userData.id}`)
-          console.log('📊 Dashboard API response status:', response.status)
-          
-          if (response.ok) {
-            const data = await response.json()
-            console.log('📚 Dashboard data received:', {
-              enrolledCoursesCount: data.data.enrolledCourses.length,
-              enrolledCourses: data.data.enrolledCourses,
-              stats: data.data.stats,
-              achievements: data.data.achievements.length
-            })
-            setEnrolledCourses(data.data.enrolledCourses)
-            setAchievements(data.data.achievements)
-            setStats(data.data.stats)
-          } else {
-            const errorText = await response.text()
-            console.error('❌ Failed to fetch dashboard data:', { status: response.status, error: errorText })
-          }
+        const userData = JSON.parse(storedUser)
+        
+        // Verify user has appropriate role for learning
+        if (!['STUDENT', 'TRAINER', 'ADMIN'].includes(userData.role)) {
+          console.error('❌ User role not authorized for learning dashboard:', userData.role)
+          window.location.href = '/'
+          return
+        }
+        
+        setUser(userData)
+        console.log('👤 User loaded for dashboard:', { id: userData.id, email: userData.email, name: userData.name, role: userData.role })
+
+        // Fetch dashboard data from API
+        const response = await fetch(`/api/student/dashboard?userId=${userData.id}`)
+        console.log('📊 Dashboard API response status:', response.status)
+        
+        if (response.status === 401) {
+          console.error('❌ Authentication failed, redirecting to login')
+          localStorage.removeItem('user')
+          localStorage.removeItem('token')
+          const currentPath = window.location.pathname
+          window.location.href = `/auth/login?redirect=${encodeURIComponent(currentPath)}`
+          return
+        }
+        
+        if (response.ok) {
+          const data = await response.json()
+          console.log('📚 Dashboard data received:', {
+            enrolledCoursesCount: data.data.enrolledCourses.length,
+            enrolledCourses: data.data.enrolledCourses,
+            stats: data.data.stats,
+            achievements: data.data.achievements.length
+          })
+          setEnrolledCourses(data.data.enrolledCourses)
+          setAchievements(data.data.achievements)
+          setStats(data.data.stats)
         } else {
-          console.warn('⚠️ No user found in localStorage')
+          const errorText = await response.text()
+          console.error('❌ Failed to fetch dashboard data:', { status: response.status, error: errorText })
         }
       } catch (error) {
         console.error('❌ Error fetching dashboard data:', error)
+        // If there's a network error, still check if user is authenticated
+        const storedUser = localStorage.getItem('user')
+        if (!storedUser) {
+          const currentPath = window.location.pathname
+          window.location.href = `/auth/login?redirect=${encodeURIComponent(currentPath)}`
+          return
+        }
       } finally {
         setLoading(false)
       }

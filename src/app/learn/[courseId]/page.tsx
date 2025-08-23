@@ -19,25 +19,153 @@ import {
   Award,
   Calendar,
   Target,
-  TrendingUp
+  TrendingUp,
+  Lock,
+  AlertTriangle
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+interface User {
+  id: string
+  email: string
+  name: string
+  role: string
+}
+
+interface Enrollment {
+  id: string
+  courseId: string
+  progress: number
+  enrolledAt: string
+  completedLessons: number
+}
 
 export default function CourseOverviewPage({ params }: { params: Promise<{ courseId: string }> }) {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [enrollmentError, setEnrollmentError] = useState<string | null>(null)
 
   // Unwrap the params Promise using React.use()
   const { courseId } = use(params)
 
   useEffect(() => {
-    // Get user from localStorage
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
+    const checkAuthAndEnrollment = async () => {
+      try {
+        // Get user from localStorage
+        const storedUser = localStorage.getItem('user')
+        if (!storedUser) {
+          setAuthError('Please log in to access this course.')
+          setTimeout(() => {
+            router.push(`/auth/login?redirect=/learn/${courseId}`)
+          }, 2000)
+          return
+        }
+
+        const userData = JSON.parse(storedUser)
+        setUser(userData)
+        
+        // Check enrollment status
+        const enrollmentResponse = await fetch(`/api/student/enrollment?courseId=${courseId}&userId=${userData.id}`)
+        
+        if (!enrollmentResponse.ok) {
+          const errorData = await enrollmentResponse.text()
+          console.error('Enrollment check failed:', errorData)
+          
+          if (enrollmentResponse.status === 401) {
+            setAuthError('Authentication required. Please log in again.')
+            setTimeout(() => {
+              router.push(`/auth/login?redirect=/learn/${courseId}`)
+            }, 2000)
+            return
+          }
+          
+          if (enrollmentResponse.status === 403) {
+            setEnrollmentError('You are not enrolled in this course. Please purchase the course to access it.')
+            setTimeout(() => {
+              router.push(`/courses/${courseId}`)
+            }, 3000)
+            return
+          }
+          
+          throw new Error('Failed to verify enrollment')
+        }
+        
+        const enrollmentData = await enrollmentResponse.json()
+        
+        if (!enrollmentData.data.enrolled) {
+          setEnrollmentError('You are not enrolled in this course. Redirecting to course page...')
+          setTimeout(() => {
+            router.push(`/courses/${courseId}`)
+          }, 3000)
+          return
+        }
+        
+        setEnrollment(enrollmentData.data.enrollment)
+        
+      } catch (error) {
+        console.error('Auth/Enrollment check error:', error)
+        setAuthError('Failed to verify access. Please try again.')
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }, [])
+
+    checkAuthAndEnrollment()
+  }, [courseId, router])
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Verifying course access...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show authentication error
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
+          <Alert className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
+          <Button onClick={() => router.push(`/auth/login?redirect=/learn/${courseId}`)}>Go to Login</Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Show enrollment error
+  if (enrollmentError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <Lock className="h-16 w-16 text-orange-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-4">Course Access Restricted</h2>
+          <Alert className="mb-4">
+            <Lock className="h-4 w-4" />
+            <AlertDescription>{enrollmentError}</AlertDescription>
+          </Alert>
+          <div className="space-y-2">
+            <Button onClick={() => router.push(`/courses/${courseId}`)}>View Course Details</Button>
+            <Button variant="outline" onClick={() => router.push('/learn')}>Back to Dashboard</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Mock course data - in real app, fetch from API
   const course = {

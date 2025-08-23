@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,6 +43,8 @@ export default function AuthPage() {
   const [providers, setProviders] = useState<any>({})
   const [activeTab, setActiveTab] = useState("login")
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [redirectPath, setRedirectPath] = useState<string>('/')
   
   const [loginForm, setLoginForm] = useState({
     email: "",
@@ -57,6 +60,13 @@ export default function AuthPage() {
   })
 
   useEffect(() => {
+    // Get redirect path from URL params
+    const redirect = searchParams.get('redirect')
+    if (redirect) {
+      setRedirectPath(decodeURIComponent(redirect))
+      console.log('📍 Redirect path set to:', decodeURIComponent(redirect))
+    }
+    
     const loadProviders = async () => {
       try {
         // Load SSO providers from our API instead of NextAuth
@@ -75,13 +85,15 @@ export default function AuthPage() {
     }
     
     loadProviders()
-  }, [])
+  }, [searchParams])
 
   const handleSocialSignIn = async (providerId: string) => {
     try {
       setLoading(true)
+      // Include redirect path in the SSO callback URL
+      const callbackUrl = redirectPath !== '/' ? `${redirectPath}` : '/'
       // Redirect to NextAuth sign-in with provider
-      window.location.href = `/api/auth/signin/${providerId}?callbackUrl=${encodeURIComponent('/')}`
+      window.location.href = `/api/auth/signin/${providerId}?callbackUrl=${encodeURIComponent(callbackUrl)}`
     } catch (error) {
       console.error('Social sign-in error:', error)
       toast({
@@ -119,20 +131,28 @@ export default function AuthPage() {
         
         // Wait a moment for user state to update
         setTimeout(() => {
-          // Redirect based on user role
-          const currentUser = user || JSON.parse(localStorage.getItem('user') || '{}')
-          switch (currentUser?.role) {
-            case 'ADMIN':
-              router.push('/admin')
-              break
-            case 'TRAINER':
-              router.push('/instructor')
-              break
-            case 'STUDENT':
-            default:
-              router.push('/learn')
-              break
+          // Use redirect path if provided, otherwise redirect based on user role
+          let targetPath = redirectPath
+          
+          // Override redirect path based on user role if coming from root
+          if (redirectPath === '/' || !redirectPath) {
+            const currentUser = user || JSON.parse(localStorage.getItem('user') || '{}')
+            switch (currentUser?.role) {
+              case 'ADMIN':
+                targetPath = '/admin'
+                break
+              case 'TRAINER':
+                targetPath = '/instructor'
+                break
+              case 'STUDENT':
+              default:
+                targetPath = '/learn'
+                break
+            }
           }
+          
+          console.log('🎯 Redirecting to:', targetPath)
+          router.push(targetPath)
         }, 100)
       } else {
         toast({
