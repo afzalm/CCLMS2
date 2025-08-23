@@ -6,6 +6,7 @@ CourseCompass V2 is a comprehensive, production-ready Learning Management System
 
 **Key Features:**
 - Complete course lifecycle management (creation, publishing, enrollment, learning)
+- **Default Course Enrollment**: All users automatically enrolled in JavaScript Fundamentals
 - Integrated payment processing with Stripe and UPI support
 - Real-time communication via Socket.IO
 - Comprehensive testing framework with Puppeteer + Jest
@@ -59,6 +60,9 @@ The project uses Prisma as its ORM with SQLite database (`db/custom.db`). The da
 *   `npm run db:generate`: Generate the Prisma client.
 *   `npm run db:migrate`: Run database migrations.
 *   `npm run db:reset`: Reset the database.
+*   `npm run db:seed`: Seed the database with initial data.
+*   `npm run db:default-course`: Enroll all users in the default JavaScript Fundamentals course.
+*   `npm run db:verify-course`: Verify default course enrollment status.
 
 ### Testing
 

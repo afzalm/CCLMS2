@@ -154,8 +154,43 @@ async function main() {
         }
     })
 
+    // Create chapters and lessons for JavaScript Fundamentals course
+    const jsChapter1 = await prisma.chapter.upsert({
+        where: { id: 'js-ch1' },
+        update: {},
+        create: {
+            id: 'js-ch1',
+            title: 'JavaScript Basics',
+            order: 1,
+            courseId: jsCourse.id
+        }
+    })
+
+    const jsChapter2 = await prisma.chapter.upsert({
+        where: { id: 'js-ch2' },
+        update: {},
+        create: {
+            id: 'js-ch2',
+            title: 'Functions and Objects',
+            order: 2,
+            courseId: jsCourse.id
+        }
+    })
+
+    const jsChapter3 = await prisma.chapter.upsert({
+        where: { id: 'js-ch3' },
+        update: {},
+        create: {
+            id: 'js-ch3',
+            title: 'DOM Manipulation',
+            order: 3,
+            courseId: jsCourse.id
+        }
+    })
+
     // Create lessons
     const lessons = [
+        // React lessons
         {
             id: 'react-lesson-1',
             title: 'Introduction to React',
@@ -182,6 +217,142 @@ async function main() {
             order: 17,
             chapterId: reactChapter2.id,
             courseId: reactCourse.id
+        },
+        // JavaScript Fundamentals lessons
+        {
+            id: 'js-lesson-1',
+            title: 'Introduction to JavaScript',
+            description: 'What is JavaScript and why is it important?',
+            duration: 900, // 15 minutes
+            order: 1,
+            chapterId: jsChapter1.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-2',
+            title: 'Variables and Data Types',
+            description: 'Learn about var, let, const and JavaScript data types',
+            duration: 1200, // 20 minutes
+            order: 2,
+            chapterId: jsChapter1.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-3',
+            title: 'Operators and Expressions',
+            description: 'Mathematical and logical operators in JavaScript',
+            duration: 1000, // 16 minutes
+            order: 3,
+            chapterId: jsChapter1.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-4',
+            title: 'Control Flow: If Statements',
+            description: 'Making decisions with if, else if, and else',
+            duration: 1100, // 18 minutes
+            order: 4,
+            chapterId: jsChapter1.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-5',
+            title: 'Loops: For and While',
+            description: 'Repeating code with for and while loops',
+            duration: 1300, // 21 minutes
+            order: 5,
+            chapterId: jsChapter1.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-6',
+            title: 'Functions Basics',
+            description: 'Creating and calling functions',
+            duration: 1500, // 25 minutes
+            order: 1,
+            chapterId: jsChapter2.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-7',
+            title: 'Function Parameters and Return Values',
+            description: 'Passing data to functions and getting results back',
+            duration: 1400, // 23 minutes
+            order: 2,
+            chapterId: jsChapter2.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-8',
+            title: 'Arrow Functions',
+            description: 'Modern function syntax with arrow functions',
+            duration: 1000, // 16 minutes
+            order: 3,
+            chapterId: jsChapter2.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-9',
+            title: 'Objects and Properties',
+            description: 'Creating and working with JavaScript objects',
+            duration: 1600, // 26 minutes
+            order: 4,
+            chapterId: jsChapter2.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-10',
+            title: 'Arrays and Array Methods',
+            description: 'Storing and manipulating lists of data',
+            duration: 1800, // 30 minutes
+            order: 5,
+            chapterId: jsChapter2.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-11',
+            title: 'Introduction to the DOM',
+            description: 'Understanding the Document Object Model',
+            duration: 1200, // 20 minutes
+            order: 1,
+            chapterId: jsChapter3.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-12',
+            title: 'Selecting Elements',
+            description: 'Finding elements with querySelector and getElementById',
+            duration: 1400, // 23 minutes
+            order: 2,
+            chapterId: jsChapter3.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-13',
+            title: 'Changing Element Content',
+            description: 'Modifying text and HTML content',
+            duration: 1300, // 21 minutes
+            order: 3,
+            chapterId: jsChapter3.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-14',
+            title: 'Event Handling',
+            description: 'Responding to user clicks and interactions',
+            duration: 1700, // 28 minutes
+            order: 4,
+            chapterId: jsChapter3.id,
+            courseId: jsCourse.id
+        },
+        {
+            id: 'js-lesson-15',
+            title: 'Building Your First Interactive Project',
+            description: 'Create a simple calculator using JavaScript',
+            duration: 2400, // 40 minutes
+            order: 5,
+            chapterId: jsChapter3.id,
+            courseId: jsCourse.id
         }
     ]
 

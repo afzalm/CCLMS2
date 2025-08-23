@@ -538,11 +538,21 @@ export default function InstructorDashboard() {
                       <div className="pt-2 border-t">
                         <p className="text-xs text-muted-foreground mb-3">Last updated: {course.lastUpdated}</p>
                         <div className="flex space-x-2">
-                          <Button size="sm" variant="outline" className="flex-1">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex-1"
+                            onClick={() => router.push(`/instructor/create-course?edit=${course.id}`)}
+                          >
                             <Eye className="h-3 w-3 mr-1" />
-                            View
+                            Edit
                           </Button>
-                          <Button size="sm" variant="outline" className="flex-1">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="flex-1"
+                            onClick={() => router.push(`/instructor/analytics/${course.id}`)}
+                          >
                             <BarChart3 className="h-3 w-3 mr-1" />
                             Analytics
                           </Button>

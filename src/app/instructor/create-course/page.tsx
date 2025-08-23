@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -29,13 +30,19 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { XLVILoader } from "@/components/ui/xlvi-loader"
 
 export default function CreateCoursePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editCourseId = searchParams.get('edit')
+  const isEditMode = Boolean(editCourseId)
+  
   const [currentStep, setCurrentStep] = useState(1)
   const [user, setUser] = useState<any>(null)
-  const [courseId, setCourseId] = useState<string | null>(null)
+  const [courseId, setCourseId] = useState<string | null>(editCourseId)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingCourseData, setLoadingCourseData] = useState(isEditMode)
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
   const [uploadingVideos, setUploadingVideos] = useState<Record<string, boolean>>({})
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
@@ -63,6 +70,80 @@ export default function CreateCoursePage() {
       router.push('/auth/login')
     }
   }, [])
+
+  // Load existing course data when in edit mode
+  useEffect(() => {
+    console.log('Edit mode effect:', { isEditMode, editCourseId, userId: user?.id })
+    if (isEditMode && editCourseId && user?.id) {
+      console.log('Loading course data for:', editCourseId)
+      loadCourseData(editCourseId)
+    }
+  }, [isEditMode, editCourseId, user?.id])
+
+  const loadCourseData = async (courseId: string) => {
+    try {
+      setLoadingCourseData(true)
+      console.log('Fetching course data:', `/api/instructor/courses/${courseId}?instructorId=${user.id}`)
+      const response = await fetch(`/api/instructor/courses/${courseId}?instructorId=${user.id}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Course data received:', data)
+        const course = data.data
+        
+        // Update course data
+        setCourseData({
+          title: course.title || '',
+          subtitle: course.subtitle || '',
+          description: course.description || '',
+          category: course.category?.name || '',
+          level: course.level || '',
+          language: course.language || 'English',
+          price: course.price?.toString() || '',
+          thumbnail: null, // Will be handled separately
+          learningObjectives: course.learningObjectives || [''],
+          requirements: course.requirements || [''],
+          targetAudience: course.targetAudience || ''
+        })
+        
+        // Update chapters and lessons if available
+        if (course.chapters && course.chapters.length > 0) {
+          const formattedChapters = course.chapters.map((chapter: any, chapterIndex: number) => ({
+            id: chapter.id || (chapterIndex + 1).toString(),
+            title: chapter.title || '',
+            lessons: chapter.lessons?.map((lesson: any, lessonIndex: number) => ({
+              id: lesson.id || `${chapterIndex + 1}-${lessonIndex + 1}`,
+              title: lesson.title || '',
+              description: lesson.description || '',
+              videoFile: null,
+              videoUrl: lesson.videoUrl || '',
+              duration: lesson.duration?.toString() || '',
+              resources: lesson.resources || []
+            })) || [{
+              id: `${chapterIndex + 1}-1`,
+              title: '',
+              description: '',
+              videoFile: null,
+              videoUrl: '',
+              duration: '',
+              resources: []
+            }]
+          }))
+          setChapters(formattedChapters)
+        }
+      } else {
+        console.error('Failed to load course data:', response.status, response.statusText)
+        const errorData = await response.text()
+        console.error('Error details:', errorData)
+        alert('Failed to load course data. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error loading course data:', error)
+      alert('Error loading course data. Please try again.')
+    } finally {
+      setLoadingCourseData(false)
+    }
+  }
 
   const [chapters, setChapters] = useState([
     {
@@ -446,6 +527,17 @@ export default function CreateCoursePage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Loading state for edit mode */}
+      {loadingCourseData && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="text-center">
+            <XLVILoader size="64px" className="mx-auto mb-4" />
+            <p className="text-lg font-medium">Loading course data...</p>
+            <p className="text-sm text-muted-foreground">Please wait while we fetch your course details</p>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 py-4">
@@ -456,7 +548,7 @@ export default function CreateCoursePage() {
                 <span className="text-2xl font-bold">CourseCompass</span>
               </Link>
               <div className="hidden md:flex items-center space-x-2 text-sm">
-                <span className="text-muted-foreground">Create Course</span>
+                <span className="text-muted-foreground">{isEditMode ? 'Edit Course' : 'Create Course'}</span>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -477,7 +569,7 @@ export default function CreateCoursePage() {
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold">Create New Course</h1>
+            <h1 className="text-3xl font-bold">{isEditMode ? 'Edit Course' : 'Create New Course'}</h1>
             <div className="text-sm text-muted-foreground">
               Step {currentStep} of {steps.length}
             </div>

@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { BookOpen, Clock, Play, Star, TrendingUp, Award, Users, Search, LogOut, User, Settings } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { XLVILoader } from "@/components/ui/xlvi-loader"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -143,8 +144,13 @@ export default function StudentDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
+          <XLVILoader 
+            size="96px" 
+            boxColors={['#3b82f6', '#8b5cf6', '#06b6d4']} 
+            className="mx-auto mb-6" 
+          />
+          <p className="text-gray-600 text-lg font-medium">Loading your dashboard...</p>
+          <p className="text-gray-400 text-sm mt-2">Preparing your learning experience</p>
         </div>
       </div>
     )
@@ -348,22 +354,68 @@ export default function StudentDashboard() {
                             <Progress value={course.progress} className="h-2" />
                           </div>
                           
-                          {course.nextLesson && (
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm text-gray-600">Next lesson:</p>
-                                <p className="text-sm font-medium">{course.nextLesson.title}</p>
-                              </div>
-                              <div className="flex space-x-2">
-                                <Link href={`/learn/${course.id}`}>
-                                  <Button variant="outline" size="sm">View Course</Button>
-                                </Link>
-                                <Link href={`/learn/${course.id}/${course.nextLesson.id}`}>
-                                  <Button size="sm">Continue</Button>
-                                </Link>
-                              </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              {course.nextLesson ? (
+                                <div>
+                                  <p className="text-sm text-gray-600">Next lesson:</p>
+                                  <p className="text-sm font-medium">{course.nextLesson.title}</p>
+                                </div>
+                              ) : course.progress === 0 ? (
+                                <div>
+                                  <p className="text-sm text-gray-600">Ready to start</p>
+                                  <p className="text-sm font-medium">Begin your learning journey</p>
+                                </div>
+                              ) : course.progress === 100 ? (
+                                <div>
+                                  <p className="text-sm text-gray-600">Course completed!</p>
+                                  <p className="text-sm font-medium">🎉 Well done!</p>
+                                </div>
+                              ) : (
+                                <div>
+                                  <p className="text-sm text-gray-600">Continue where you left off</p>
+                                  <p className="text-sm font-medium">{course.progress}% completed</p>
+                                </div>
+                              )}
                             </div>
-                          )}
+                            <div className="flex space-x-2">
+                              <Link href={`/learn/${course.id}`}>
+                                <Button variant="outline" size="sm" className="flex items-center space-x-1">
+                                  <BookOpen className="h-4 w-4" />
+                                  <span>View Course</span>
+                                </Button>
+                              </Link>
+                              {course.nextLesson ? (
+                                <Link href={`/learn/${course.id}/${course.nextLesson.id}`}>
+                                  <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white flex items-center space-x-1">
+                                    <Play className="h-4 w-4" />
+                                    <span>Continue</span>
+                                  </Button>
+                                </Link>
+                              ) : course.progress === 0 ? (
+                                <Link href={`/learn/${course.id}`}>
+                                  <Button size="sm" className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white flex items-center space-x-1">
+                                    <Play className="h-4 w-4" />
+                                    <span>Start Learning</span>
+                                  </Button>
+                                </Link>
+                              ) : course.progress === 100 ? (
+                                <Link href={`/learn/${course.id}`}>
+                                  <Button size="sm" variant="outline" className="flex items-center space-x-1">
+                                    <Award className="h-4 w-4" />
+                                    <span>Review</span>
+                                  </Button>
+                                </Link>
+                              ) : (
+                                <Link href={`/learn/${course.id}`}>
+                                  <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white flex items-center space-x-1">
+                                    <Play className="h-4 w-4" />
+                                    <span>Continue</span>
+                                  </Button>
+                                </Link>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
