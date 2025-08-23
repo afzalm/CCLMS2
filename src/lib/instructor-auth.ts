@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { verifyAccessToken } from '@/lib/jwt'
+import { verifyAccessToken, extractTokenFromRequest } from '@/lib/jwt'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
@@ -16,16 +16,8 @@ export interface InstructorUser {
  * Returns instructor user if valid, throws error if not authorized
  */
 export async function verifyInstructorAccess(request: NextRequest): Promise<InstructorUser> {
-  // Check for Authorization header first
-  const authHeader = request.headers.get('authorization')
-  let token = null
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.substring(7)
-  } else {
-    // Fallback to cookie-based auth
-    token = request.cookies.get('token')?.value
-  }
+  // Use the same token extraction logic as middleware
+  const token = extractTokenFromRequest(request)
 
   if (!token) {
     throw new Error('Authentication required')
@@ -33,7 +25,7 @@ export async function verifyInstructorAccess(request: NextRequest): Promise<Inst
 
   try {
     // Verify the JWT token
-    const decoded = verifyAccessToken(token)
+    const decoded = await verifyAccessToken(token)
     if (!decoded || !decoded.userId) {
       throw new Error('Invalid token')
     }
