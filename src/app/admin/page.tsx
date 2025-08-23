@@ -781,7 +781,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold">
-                        ${formatNumber(revenueData[revenueData.length - 1].revenue)}
+                        ${formatNumber(revenueData[revenueData.length - 1]?.revenue || 0)}
                       </p>
                       <p className="text-sm text-muted-foreground">This month</p>
                     </div>

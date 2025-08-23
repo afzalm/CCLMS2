@@ -74,6 +74,7 @@ export default function CreateCoursePage() {
           title: "",
           description: "",
           videoFile: null as File | null,
+          videoUrl: "",
           duration: "",
           resources: []
         }
@@ -132,6 +133,7 @@ export default function CreateCoursePage() {
           title: "",
           description: "",
           videoFile: null as File | null,
+          videoUrl: "",
           duration: "",
           resources: []
         }
@@ -148,6 +150,7 @@ export default function CreateCoursePage() {
       title: "",
       description: "",
       videoFile: null as File | null,
+      videoUrl: "",
       duration: "",
       resources: []
     }
@@ -638,8 +641,6 @@ export default function CreateCoursePage() {
                           </p>
                         </div>
                       )}
-                    </div>
-                  </div>
                     </div>
                   </div>
 
