@@ -43,6 +43,10 @@ export default function InstructorDashboard() {
   const [courses, setCourses] = useState<any[]>([])
   const [stats, setStats] = useState<any>({})
   const [recentActivity, setRecentActivity] = useState<any[]>([])
+  const [revenueData, setRevenueData] = useState<any[]>([])
+  const [engagementData, setEngagementData] = useState<any[]>([])
+  const [atRiskStudents, setAtRiskStudents] = useState<any[]>([])
+  const [topPerformers, setTopPerformers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
 
@@ -81,24 +85,41 @@ export default function InstructorDashboard() {
           setRecentActivity(activityData.data)
         } else {
           console.error('Failed to fetch activity data')
-          // Use fallback mock data if API fails
-          setRecentActivity([
-            {
-              id: "1",
-              type: "enrollment",
-              course: "Complete Web Development Bootcamp",
-              student: "John Doe",
-              timestamp: "2 minutes ago"
-            },
-            {
-              id: "2",
-              type: "review",
-              course: "Advanced React and Redux",
-              student: "Jane Smith",
-              rating: 5,
-              timestamp: "15 minutes ago"
-            }
-          ])
+          setRecentActivity([])
+        }
+
+        // Fetch revenue data
+        const revenueResponse = await fetch(`/api/instructor/revenue?instructorId=${user.id}&timeRange=6m&groupBy=month`)
+        if (revenueResponse.ok) {
+          const revenueResult = await revenueResponse.json()
+          if (revenueResult.success) {
+            setRevenueData(revenueResult.data.revenueByPeriod || [])
+          }
+        } else {
+          console.error('Failed to fetch revenue data')
+        }
+
+        // Fetch engagement data
+        const engagementResponse = await fetch(`/api/instructor/engagement?instructorId=${user.id}&timeRange=7d`)
+        if (engagementResponse.ok) {
+          const engagementResult = await engagementResponse.json()
+          if (engagementResult.success) {
+            setEngagementData(engagementResult.data.dailyActiveStudents || [])
+          }
+        } else {
+          console.error('Failed to fetch engagement data')
+        }
+
+        // Fetch student data
+        const studentsResponse = await fetch(`/api/instructor/students?instructorId=${user.id}&limit=50`)
+        if (studentsResponse.ok) {
+          const studentsResult = await studentsResponse.json()
+          if (studentsResult.success) {
+            setAtRiskStudents(studentsResult.data.atRiskStudents || [])
+            setTopPerformers(studentsResult.data.topPerformers || [])
+          }
+        } else {
+          console.error('Failed to fetch students data')
         }
       } catch (error) {
         console.error('Error fetching instructor data:', error)
@@ -147,53 +168,47 @@ export default function InstructorDashboard() {
     return new Intl.NumberFormat('en-US').format(num)
   }
 
-  // courses is now loaded from API via useState
-
-  const revenueData = [
-    { month: "Jan", revenue: 2800 },
-    { month: "Feb", revenue: 3200 },
-    { month: "Mar", revenue: 3600 },
-    { month: "Apr", revenue: 3400 },
-    { month: "May", revenue: 4100 },
-    { month: "Jun", revenue: 3840 }
-  ]
-
-  const studentEngagement = [
-    { day: "Mon", active: 240 },
-    { day: "Tue", active: 320 },
-    { day: "Wed", active: 280 },
-    { day: "Thu", active: 350 },
-    { day: "Fri", active: 310 },
-    { day: "Sat", active: 180 },
-    { day: "Sun", active: 150 }
-  ]
-
-  const atRiskStudents = [
-    {
-      id: "1",
-      name: "Alice Brown",
-      course: "Complete Web Development Bootcamp",
-      progress: 15,
-      lastActive: "5 days ago",
-      email: "alice@example.com"
-    },
-    {
-      id: "2",
-      name: "Bob Davis",
-      course: "Advanced React and Redux",
-      progress: 8,
-      lastActive: "7 days ago",
-      email: "bob@example.com"
-    },
-    {
-      id: "3",
-      name: "Carol White",
-      course: "Python for Data Analysis",
-      progress: 22,
-      lastActive: "3 days ago",
-      email: "carol@example.com"
+  // Helper function to format revenue chart data
+  const formatRevenueData = () => {
+    if (!revenueData || revenueData.length === 0) {
+      return [
+        { month: "Jan", revenue: 0 },
+        { month: "Feb", revenue: 0 },
+        { month: "Mar", revenue: 0 },
+        { month: "Apr", revenue: 0 },
+        { month: "May", revenue: 0 },
+        { month: "Jun", revenue: 0 }
+      ]
     }
-  ]
+    
+    return revenueData.slice(-6).map(item => ({
+      month: item.formattedPeriod || new Date(item.period).toLocaleDateString('en-US', { month: 'short' }),
+      revenue: item.revenue || 0
+    }))
+  }
+
+  // Helper function to format engagement data
+  const formatEngagementData = () => {
+    if (!engagementData || engagementData.length === 0) {
+      return [
+        { day: "Mon", active: 0 },
+        { day: "Tue", active: 0 },
+        { day: "Wed", active: 0 },
+        { day: "Thu", active: 0 },
+        { day: "Fri", active: 0 },
+        { day: "Sat", active: 0 },
+        { day: "Sun", active: 0 }
+      ]
+    }
+    
+    return engagementData.slice(-7).map(item => ({
+      day: item.dayOfWeek || new Date(item.date).toLocaleDateString('en-US', { weekday: 'short' }),
+      active: item.activeStudents || 0
+    }))
+  }
+
+  const formattedRevenueData = formatRevenueData()
+  const formattedEngagementData = formatEngagementData()
 
   if (loading) {
     return (
@@ -387,19 +402,24 @@ export default function InstructorDashboard() {
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-end justify-between h-32">
-                      {revenueData.map((item, index) => (
-                        <div key={index} className="flex flex-col items-center flex-1">
-                          <div 
-                            className="w-full bg-primary rounded-t"
-                            style={{ height: `${(item.revenue / 5000) * 100}%` }}
-                          />
-                          <span className="text-xs mt-2">{item.month}</span>
-                        </div>
-                      ))}
+                      {formattedRevenueData.map((item, index) => {
+                        const maxRevenue = Math.max(...formattedRevenueData.map(d => d.revenue), 1)
+                        return (
+                          <div key={index} className="flex flex-col items-center flex-1">
+                            <div 
+                              className="w-full bg-primary rounded-t"
+                              style={{ height: `${Math.max((item.revenue / maxRevenue) * 100, 2)}%` }}
+                            />
+                            <span className="text-xs mt-2">{item.month}</span>
+                          </div>
+                        )
+                      })}
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">${formatNumber(instructorStats.monthlyRevenue)}</p>
-                      <p className="text-sm text-muted-foreground">This month</p>
+                      <p className="text-2xl font-bold">
+                        ${formatNumber(formattedRevenueData.length > 0 ? formattedRevenueData[formattedRevenueData.length - 1].revenue : 0)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Latest month</p>
                     </div>
                   </div>
                 </CardContent>
@@ -414,19 +434,22 @@ export default function InstructorDashboard() {
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-end justify-between h-32">
-                      {studentEngagement.map((item, index) => (
-                        <div key={index} className="flex flex-col items-center flex-1">
-                          <div 
-                            className="w-full bg-blue-600 rounded-t"
-                            style={{ height: `${(item.active / 400) * 100}%` }}
-                          />
-                          <span className="text-xs mt-2">{item.day}</span>
-                        </div>
-                      ))}
+                      {formattedEngagementData.map((item, index) => {
+                        const maxActive = Math.max(...formattedEngagementData.map(d => d.active), 1)
+                        return (
+                          <div key={index} className="flex flex-col items-center flex-1">
+                            <div 
+                              className="w-full bg-blue-600 rounded-t"
+                              style={{ height: `${Math.max((item.active / maxActive) * 100, 2)}%` }}
+                            />
+                            <span className="text-xs mt-2">{item.day}</span>
+                          </div>
+                        )
+                      })}
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold">
-                        {studentEngagement.reduce((sum, item) => sum + item.active, 0)}
+                        {formattedEngagementData.reduce((sum, item) => sum + item.active, 0)}
                       </p>
                       <p className="text-sm text-muted-foreground">Total active students</p>
                     </div>
@@ -617,11 +640,18 @@ export default function InstructorDashboard() {
                             <span className="text-xs text-red-600">{student.progress}%</span>
                           </div>
                           <p className="text-xs text-muted-foreground mb-1">{student.course}</p>
-                          <p className="text-xs text-red-600">Last active: {student.lastActive}</p>
+                          <p className="text-xs text-red-600">Last active: {student.lastActive || new Date(student.lastActive).toLocaleDateString()}</p>
                         </div>
                         <Button size="sm" variant="outline">Contact</Button>
                       </div>
                     ))}
+                    {atRiskStudents.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No at-risk students found</p>
+                        <p className="text-xs">All students are making good progress!</p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -633,12 +663,8 @@ export default function InstructorDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {[
-                      { name: "Emma Wilson", course: "Complete Web Development Bootcamp", progress: 95, completionTime: "3 weeks" },
-                      { name: "David Chen", course: "Advanced React and Redux", progress: 88, completionTime: "4 weeks" },
-                      { name: "Lisa Anderson", course: "Python for Data Analysis", progress: 92, completionTime: "2 weeks" }
-                    ].map((student, index) => (
-                      <div key={index} className="flex items-center space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    {topPerformers.map((student, index) => (
+                      <div key={student.id || index} className="flex items-center space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
                         <CheckCircle className="h-5 w-5 text-green-600" />
                         <div className="flex-1">
                           <div className="flex justify-between items-start mb-1">
@@ -646,11 +672,20 @@ export default function InstructorDashboard() {
                             <span className="text-xs text-green-600">{student.progress}%</span>
                           </div>
                           <p className="text-xs text-muted-foreground mb-1">{student.course}</p>
-                          <p className="text-xs text-green-600">Completed in: {student.completionTime}</p>
+                          <p className="text-xs text-green-600">
+                            {student.completionTime ? `Completed in: ${student.completionTime} days` : 'In progress'}
+                          </p>
                         </div>
                         <Button size="sm" variant="outline">Message</Button>
                       </div>
                     ))}
+                    {topPerformers.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <CheckCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>No top performers yet</p>
+                        <p className="text-xs">Students will appear here as they progress!</p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
