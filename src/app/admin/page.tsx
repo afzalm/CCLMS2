@@ -48,6 +48,30 @@ export default function AdminDashboard() {
   const [courseFilter, setCourseFilter] = useState("all")
   const [user, setUser] = useState<any>(null)
   const [mounted, setMounted] = useState(false)
+  const [platformStats, setPlatformStats] = useState<any>({
+    totalUsers: 0,
+    totalCourses: 0,
+    totalRevenue: 0,
+    monthlyActiveUsers: 0,
+    pendingReviews: 0,
+    flaggedContent: 0,
+    supportTickets: 0,
+    userGrowth: 0,
+    courseGrowth: 0,
+    revenueGrowth: 0,
+    revenueData: []
+  })
+  const [isLoading, setIsLoading] = useState(true)
+  const [users, setUsers] = useState([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalUsers, setTotalUsers] = useState(0)
+  const usersPerPage = 10
+  const [courses, setCourses] = useState([])
+  const [coursesLoading, setCoursesLoading] = useState(false)
+  const [courseCurrentPage, setCourseCurrentPage] = useState(1)
+  const [totalCourses, setTotalCourses] = useState(0)
+  const coursesPerPage = 10
 
   // Prevent hydration mismatch by only rendering after mount
   useEffect(() => {
@@ -60,7 +84,49 @@ export default function AdminDashboard() {
     if (storedUser) {
       setUser(JSON.parse(storedUser))
     }
+    
+    // Fetch admin overview data
+    fetchAdminOverview()
   }, [])
+
+  const fetchAdminOverview = async () => {
+    try {
+      const storedUser = localStorage.getItem('user')
+      if (!storedUser) {
+        router.push('/auth/login')
+        return
+      }
+
+      const userData = JSON.parse(storedUser)
+      if (userData.role !== 'ADMIN') {
+        router.push('/')
+        return
+      }
+
+      const response = await fetch('/api/admin/overview', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setPlatformStats(data.data)
+      } else if (response.status === 401) {
+        // Unauthorized, redirect to login
+        localStorage.removeItem('user')
+        localStorage.removeItem('token')
+        router.push('/auth/login')
+      } else {
+        console.error('Failed to fetch admin overview data')
+      }
+    } catch (error) {
+      console.error('Error fetching admin overview:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleLogout = async () => {
     console.log('Admin logout clicked')
@@ -83,105 +149,169 @@ export default function AdminDashboard() {
     }
   }
 
-  // Mock admin data
-  const platformStats = {
-    totalUsers: 45230,
-    totalCourses: 1240,
-    totalRevenue: 894520,
-    monthlyActiveUsers: 12450,
-    pendingReviews: 23,
-    flaggedContent: 8,
-    supportTickets: 47
+  // Fetch users data
+  const fetchUsers = async (page = 1, search = '', filter = 'all') => {
+    setUsersLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: usersPerPage.toString(),
+        search,
+        filter
+      })
+      
+      const response = await fetch(`/api/admin/users?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setUsers(data.users)
+        setTotalUsers(data.total)
+      } else {
+        console.error('Failed to fetch users')
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    } finally {
+      setUsersLoading(false)
+    }
   }
+
+  // Handle user status updates
+  const handleUserStatusUpdate = async (userId: string, status: string) => {
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          userId,
+          action: status === 'active' ? 'suspend' : 'activate'
+        })
+      })
+      
+      if (response.ok) {
+        // Refresh users list
+        fetchUsers(currentPage, searchTerm, userFilter)
+        // Show success message
+        alert(`User ${status === 'active' ? 'suspended' : 'activated'} successfully`)
+      } else {
+        alert('Failed to update user status')
+      }
+    } catch (error) {
+      console.error('Error updating user status:', error)
+      alert('Error updating user status')
+    }
+  }
+
+  // Fetch courses data
+  const fetchCourses = async (page = 1, search = '', filter = 'all') => {
+    setCoursesLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: coursesPerPage.toString(),
+        search,
+        status: filter
+      })
+      
+      const response = await fetch(`/api/admin/courses?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCourses(data.courses)
+        setTotalCourses(data.total)
+      } else {
+        console.error('Failed to fetch courses')
+      }
+    } catch (error) {
+      console.error('Error fetching courses:', error)
+    } finally {
+      setCoursesLoading(false)
+    }
+  }
+
+  // Handle course actions (approve, reject, flag, etc.)
+  const handleCourseAction = async (courseId: string, action: string) => {
+    try {
+      const response = await fetch('/api/admin/courses', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          courseId,
+          action
+        })
+      })
+      
+      if (response.ok) {
+        // Refresh courses list
+        fetchCourses(courseCurrentPage, searchTerm, courseFilter)
+        // Show success message
+        alert(`Course ${action}d successfully`)
+      } else {
+        alert(`Failed to ${action} course`)
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing course:`, error)
+      alert(`Error ${action}ing course`)
+    }
+  }
+
+  // Fetch users when component mounts or filters change
+  useEffect(() => {
+    if (mounted) {
+      fetchUsers(currentPage, searchTerm, userFilter)
+    }
+  }, [mounted, currentPage, searchTerm, userFilter])
+
+  // Debounced search for better performance
+  useEffect(() => {
+    if (mounted) {
+      const timeoutId = setTimeout(() => {
+        setCurrentPage(1) // Reset to first page when searching
+        fetchUsers(1, searchTerm, userFilter)
+      }, 300)
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [searchTerm, userFilter, mounted])
+
+  // Fetch courses when component mounts or filters change
+  useEffect(() => {
+    if (mounted) {
+      fetchCourses(courseCurrentPage, searchTerm, courseFilter)
+    }
+  }, [mounted, courseCurrentPage])
+
+  // Debounced search for courses
+  useEffect(() => {
+    if (mounted) {
+      const timeoutId = setTimeout(() => {
+        setCourseCurrentPage(1) // Reset to first page when searching
+        fetchCourses(1, searchTerm, courseFilter)
+      }, 300)
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [searchTerm, courseFilter, mounted])
 
   // Consistent number formatting function
   const formatNumber = (num: number) => {
     if (!mounted) return num.toString() // Prevent hydration mismatch
     return new Intl.NumberFormat('en-US').format(num)
   }
-
-  const users = [
-    {
-      id: "1",
-      name: "John Doe",
-      email: "john@example.com",
-      role: "STUDENT",
-      status: "active",
-      joinDate: "2024-01-15",
-      lastActive: "2024-11-01",
-      coursesEnrolled: 12,
-      totalSpent: 456.80
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      email: "jane@example.com",
-      role: "INSTRUCTOR",
-      status: "active",
-      joinDate: "2023-11-20",
-      lastActive: "2024-10-31",
-      coursesCreated: 8,
-      totalRevenue: 12450.00
-    },
-    {
-      id: "3",
-      name: "Mike Johnson",
-      email: "mike@example.com",
-      role: "STUDENT",
-      status: "suspended",
-      joinDate: "2024-02-10",
-      lastActive: "2024-10-15",
-      coursesEnrolled: 5,
-      totalSpent: 234.50
-    },
-    {
-      id: "4",
-      name: "Sarah Wilson",
-      email: "sarah@example.com",
-      role: "INSTRUCTOR",
-      status: "pending",
-      joinDate: "2024-10-28",
-      lastActive: "2024-10-28",
-      coursesCreated: 0,
-      totalRevenue: 0
-    }
-  ]
-
-  const courses = [
-    {
-      id: "1",
-      title: "Complete Web Development Bootcamp",
-      instructor: "Jane Smith",
-      status: "published",
-      students: 1542,
-      revenue: 12360,
-      rating: 4.8,
-      created: "2024-01-15",
-      lastUpdated: "2024-11-01"
-    },
-    {
-      id: "2",
-      title: "Advanced Python Programming",
-      instructor: "Bob Davis",
-      status: "pending_review",
-      students: 0,
-      revenue: 0,
-      rating: 0,
-      created: "2024-10-30",
-      lastUpdated: "2024-10-30"
-    },
-    {
-      id: "3",
-      title: "Digital Marketing Masterclass",
-      instructor: "Emma Wilson",
-      status: "flagged",
-      students: 234,
-      revenue: 1872,
-      rating: 3.2,
-      created: "2024-09-15",
-      lastUpdated: "2024-10-25"
-    }
-  ]
 
   const flaggedContent = [
     {
@@ -249,7 +379,7 @@ export default function AdminDashboard() {
     }
   ]
 
-  const revenueData = [
+  const revenueData = platformStats.revenueData || [
     { month: "Jun", revenue: 125000 },
     { month: "Jul", revenue: 142000 },
     { month: "Aug", revenue: 138000 },
@@ -257,22 +387,6 @@ export default function AdminDashboard() {
     { month: "Oct", revenue: 168000 },
     { month: "Nov", revenue: 149000 }
   ]
-
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = userFilter === "all" || 
-                         userFilter === user.role.toLowerCase() ||
-                         userFilter === user.status
-    return matchesSearch && matchesFilter
-  })
-
-  const filteredCourses = courses.filter(course => {
-    const matchesSearch = course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         course.instructor.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = courseFilter === "all" || courseFilter === course.status
-    return matchesSearch && matchesFilter
-  })
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -398,7 +512,7 @@ export default function AdminDashboard() {
                   <p className="text-2xl font-bold">{formatNumber(platformStats.totalUsers)}</p>
                   <p className="text-xs text-green-600 flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    +15% from last month
+                    +{platformStats.userGrowth}% from last month
                   </p>
                 </div>
                 <Users className="h-8 w-8 text-blue-600" />
@@ -414,7 +528,7 @@ export default function AdminDashboard() {
                   <p className="text-2xl font-bold">{formatNumber(platformStats.totalCourses)}</p>
                   <p className="text-xs text-green-600 flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    +8% from last month
+                    +{platformStats.courseGrowth}% from last month
                   </p>
                 </div>
                 <BookOpen className="h-8 w-8 text-green-600" />
@@ -430,7 +544,7 @@ export default function AdminDashboard() {
                   <p className="text-2xl font-bold">${formatNumber(platformStats.totalRevenue)}</p>
                   <p className="text-xs text-green-600 flex items-center">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    +12% from last month
+                    +{platformStats.revenueGrowth}% from last month
                   </p>
                 </div>
                 <DollarSign className="h-8 w-8 text-green-600" />
@@ -509,12 +623,12 @@ export default function AdminDashboard() {
                     <Button variant="outline" className="h-20 flex-col">
                       <UserCheck className="h-6 w-6 mb-2" />
                       <span className="text-sm">Approve Users</span>
-                      <Badge className="mt-1">{users.filter(u => u.status === "pending").length}</Badge>
+                      <Badge className="mt-1">{platformStats.pendingUsers || 0}</Badge>
                     </Button>
                     <Button variant="outline" className="h-20 flex-col">
                       <BookOpen className="h-6 w-6 mb-2" />
                       <span className="text-sm">Review Courses</span>
-                      <Badge className="mt-1">{courses.filter(c => c.status === "pending_review").length}</Badge>
+                      <Badge className="mt-1">{platformStats.pendingReviews || 0}</Badge>
                     </Button>
                     <Button 
                       variant="outline" 
@@ -621,59 +735,128 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="space-y-4">
-                  {filteredUsers.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
-                          <Users className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{user.name}</h4>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant="secondary">{user.role}</Badge>
-                            {getStatusBadge(user.status)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">
-                          Joined: {user.joinDate}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Last active: {user.lastActive}
-                        </p>
-                        {user.role === "STUDENT" && (
-                          <p className="text-sm font-medium">
-                            {user.coursesEnrolled || 0} courses • ${user.totalSpent || 0}
-                          </p>
-                        )}
-                        {user.role === "INSTRUCTOR" && (
-                          <p className="text-sm font-medium">
-                            {user.coursesCreated || 0} courses • ${formatNumber(user.totalRevenue || 0)}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="h-3 w-3 mr-1" />
-                          View
-                        </Button>
-                        {user.status === "active" ? (
-                          <Button size="sm" variant="outline">
-                            <Ban className="h-3 w-3 mr-1" />
-                            Suspend
-                          </Button>
-                        ) : (
-                          <Button size="sm" variant="outline">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Activate
-                          </Button>
-                        )}
+                  {usersLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-muted-foreground">Loading users...</p>
                       </div>
                     </div>
-                  ))}
+                  ) : users.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No users found</h3>
+                      <p className="text-sm text-muted-foreground">Try adjusting your search or filter criteria.</p>
+                    </div>
+                  ) : (
+                    users.map((user: any) => (
+                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                            {user.avatar ? (
+                              <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full" />
+                            ) : (
+                              <Users className="h-5 w-5 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{user.name || 'Unknown User'}</h4>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge variant="secondary">{user.role}</Badge>
+                              {getStatusBadge(user.status)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">
+                            Joined: {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Last active: {user.updatedAt ? new Date(user.updatedAt).toLocaleDateString() : 'N/A'}
+                          </p>
+                          {user.role === "STUDENT" && (
+                            <p className="text-sm font-medium">
+                              {user.enrollmentCount || 0} courses • ${formatNumber(user.totalSpent || 0)}
+                            </p>
+                          )}
+                          {user.role === "TRAINER" && (
+                            <p className="text-sm font-medium">
+                              {user.courseCount || 0} courses • ${formatNumber(user.totalRevenue || 0)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => window.open(`/profile/${user.id}`, '_blank')}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
+                          {user.status === "active" ? (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to suspend this user?')) {
+                                  handleUserStatusUpdate(user.id, user.status)
+                                }
+                              }}
+                            >
+                              <Ban className="h-3 w-3 mr-1" />
+                              Suspend
+                            </Button>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to activate this user?')) {
+                                  handleUserStatusUpdate(user.id, user.status)
+                                }
+                              }}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Activate
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
+                
+                {/* Pagination */}
+                {!usersLoading && users.length > 0 && (
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {((currentPage - 1) * usersPerPage) + 1} to {Math.min(currentPage * usersPerPage, totalUsers)} of {totalUsers} users
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm">
+                        Page {currentPage} of {Math.ceil(totalUsers / usersPerPage)}
+                      </span>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setCurrentPage(prev => prev + 1)}
+                        disabled={currentPage >= Math.ceil(totalUsers / usersPerPage)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -709,49 +892,153 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="space-y-4">
-                  {filteredCourses.map((course) => (
-                    <div key={course.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-16 h-12 bg-muted rounded flex items-center justify-center">
-                          <BookOpen className="h-6 w-6 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{course.title}</h4>
-                          <p className="text-sm text-muted-foreground">by {course.instructor}</p>
-                          <div className="flex items-center space-x-2 mt-1">
-                            {getStatusBadge(course.status)}
-                            {course.rating > 0 && (
-                              <span className="text-sm">★ {course.rating}</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">
-                          Created: {course.created}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Updated: {course.lastUpdated}
-                        </p>
-                        <p className="text-sm font-medium">
-                          {course.students} students • ${formatNumber(course.revenue)}
-                        </p>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="h-3 w-3 mr-1" />
-                          Preview
-                        </Button>
-                        {course.status === "pending_review" && (
-                          <Button size="sm">Review</Button>
-                        )}
-                        {course.status === "flagged" && (
-                          <Button size="sm" variant="outline">Moderate</Button>
-                        )}
+                  {coursesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                        <p className="text-sm text-muted-foreground">Loading courses...</p>
                       </div>
                     </div>
-                  ))}
+                  ) : courses.length === 0 ? (
+                    <div className="text-center py-8">
+                      <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No courses found</h3>
+                      <p className="text-sm text-muted-foreground">Try adjusting your search or filter criteria.</p>
+                    </div>
+                  ) : (
+                    courses.map((course: any) => (
+                      <div key={course.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-16 h-12 bg-muted rounded flex items-center justify-center">
+                            {course.thumbnail ? (
+                              <img src={course.thumbnail} alt={course.title} className="w-16 h-12 rounded object-cover" />
+                            ) : (
+                              <BookOpen className="h-6 w-6 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{course.title}</h4>
+                            <p className="text-sm text-muted-foreground">by {course.trainer?.name || 'Unknown Instructor'}</p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              {getStatusBadge(course.status)}
+                              {course.averageRating > 0 && (
+                                <span className="text-sm flex items-center">
+                                  ★ {Number(course.averageRating).toFixed(1)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">
+                            Created: {course.createdAt ? new Date(course.createdAt).toLocaleDateString() : 'N/A'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Updated: {course.updatedAt ? new Date(course.updatedAt).toLocaleDateString() : 'N/A'}
+                          </p>
+                          <p className="text-sm font-medium">
+                            {course.enrollmentCount || 0} students • ${formatNumber(course.totalRevenue || 0)}
+                          </p>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => window.open(`/courses/${course.id}`, '_blank')}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Preview
+                          </Button>
+                          {course.status === "PUBLISHED" && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to flag this course?')) {
+                                  handleCourseAction(course.id, 'flag')
+                                }
+                              }}
+                            >
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Flag
+                            </Button>
+                          )}
+                          {course.status === "DRAFT" && (
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to approve this course for publication?')) {
+                                  handleCourseAction(course.id, 'approve')
+                                }
+                              }}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Approve
+                            </Button>
+                          )}
+                          {course.status === "FLAGGED" && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to unflag this course?')) {
+                                    handleCourseAction(course.id, 'unflag')
+                                  }
+                                }}
+                              >
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Unflag
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="destructive"
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to reject this course? This action cannot be undone.')) {
+                                    handleCourseAction(course.id, 'reject')
+                                  }
+                                }}
+                              >
+                                <XCircle className="h-3 w-3 mr-1" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
+                
+                {/* Pagination */}
+                {!coursesLoading && courses.length > 0 && (
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {((courseCurrentPage - 1) * coursesPerPage) + 1} to {Math.min(courseCurrentPage * coursesPerPage, totalCourses)} of {totalCourses} courses
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setCourseCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={courseCurrentPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm">
+                        Page {courseCurrentPage} of {Math.ceil(totalCourses / coursesPerPage)}
+                      </span>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setCourseCurrentPage(prev => prev + 1)}
+                        disabled={courseCurrentPage >= Math.ceil(totalCourses / coursesPerPage)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

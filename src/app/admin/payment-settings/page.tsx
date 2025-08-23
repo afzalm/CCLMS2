@@ -523,7 +523,7 @@ export default function PaymentSettingsPage() {
                           <div key={field.key}>
                             <Label className="text-sm font-medium">{field.label}</Label>
                             <p className="text-sm text-muted-foreground">
-                              {field.secret ? '••••••••••••••••' : String(existingGateway[field.key as keyof PaymentGateway] || 'Not configured')}
+                              {field.secret ? '••••••••••••••••' : (existingGateway[field.key as keyof PaymentGateway] || 'Not configured')}
                             </p>
                           </div>
                         ))}

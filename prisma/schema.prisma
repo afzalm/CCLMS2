@@ -31,6 +31,13 @@ model User {
   reviews     Review[]
   payments    Payment[]
   quizAttempts QuizAttempt[]
+  activityLogs ActivityLog[]
+  reportsMade ContentReport[] @relation("ReportsMade")
+  reportsReviewed ContentReport[] @relation("ReportsReviewed")
+  moderationActions ModerationAction[] @relation("ModerationActionsPerformed")
+  supportTickets SupportTicket[] @relation("TicketsCreated")
+  assignedTickets SupportTicket[] @relation("TicketsAssigned")
+  ticketMessages TicketMessage[] @relation("TicketMessagesSent")
 
   @@map("users")
 }
@@ -46,6 +53,7 @@ model Course {
   language    String   @default("en")
   categoryId  String?
   trainerId   String
+  publishedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -256,6 +264,20 @@ model Payment {
   @@map("payments")
 }
 
+model ActivityLog {
+  id           String   @id @default(cuid())
+  userId       String
+  activityType String   // "COURSE_PUBLISHED", "COURSE_CREATED", "ENROLLMENT_RECEIVED", etc.
+  description  String
+  metadata     Json?    // Additional data related to the activity
+  createdAt    DateTime @default(now())
+
+  // Relations
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
+
 model SSOProvider {
   id          String   @id @default(cuid())
   name        String   @unique // "google", "facebook", "linkedin"
@@ -268,6 +290,83 @@ model SSOProvider {
   updatedAt   DateTime @updatedAt
 
   @@map("sso_providers")
+}
+
+model ContentReport {
+  id          String   @id @default(cuid())
+  contentType ReportContentType // COURSE, REVIEW, USER
+  contentId   String   // ID of the reported content
+  reporterId  String   // User who made the report
+  reason      String   // Reason for the report
+  description String?  // Additional details
+  severity    ReportSeverity @default(MEDIUM)
+  status      ReportStatus @default(PENDING)
+  reviewedBy  String?  // Admin who reviewed the report
+  reviewedAt  DateTime?
+  resolution  String?  // Resolution notes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  reporter    User     @relation("ReportsMade", fields: [reporterId], references: [id])
+  reviewer    User?    @relation("ReportsReviewed", fields: [reviewedBy], references: [id])
+  actions     ModerationAction[]
+
+  @@map("content_reports")
+}
+
+model ModerationAction {
+  id          String   @id @default(cuid())
+  reportId    String?
+  contentType ActionContentType
+  contentId   String   // ID of the content being moderated
+  actionType  ActionType
+  performedBy String   // Admin who performed the action
+  reason      String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  report      ContentReport? @relation(fields: [reportId], references: [id])
+  moderator   User     @relation("ModerationActionsPerformed", fields: [performedBy], references: [id])
+
+  @@map("moderation_actions")
+}
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  userId      String
+  subject     String
+  description String
+  category    TicketCategory @default(GENERAL)
+  priority    TicketPriority @default(MEDIUM)
+  status      TicketStatus @default(OPEN)
+  assignedTo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  resolvedAt  DateTime?
+
+  // Relations
+  user        User     @relation("TicketsCreated", fields: [userId], references: [id])
+  assignee    User?    @relation("TicketsAssigned", fields: [assignedTo], references: [id])
+  messages    TicketMessage[]
+
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  senderId  String
+  message   String
+  isInternal Boolean @default(false) // Internal admin notes
+  createdAt DateTime @default(now())
+
+  // Relations
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender    User     @relation("TicketMessagesSent", fields: [senderId], references: [id])
+
+  @@map("ticket_messages")
 }
 
 // Enums
@@ -307,4 +406,67 @@ enum QuestionType {
   MULTIPLE_ANSWER
   TRUE_FALSE
   TEXT
+}
+
+enum ReportContentType {
+  COURSE
+  REVIEW
+  USER
+  LESSON
+}
+
+enum ReportSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ActionContentType {
+  COURSE
+  REVIEW
+  USER
+  LESSON
+}
+
+enum ActionType {
+  WARNING
+  SUSPEND
+  BAN
+  DELETE
+  HIDE
+  APPROVE
+  REJECT
+  FLAG
+  UNFLAG
+}
+
+enum TicketCategory {
+  GENERAL
+  TECHNICAL
+  BILLING
+  CONTENT
+  ACCOUNT
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
 }

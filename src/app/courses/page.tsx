@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,8 +33,14 @@ import {
   List,
   DollarSign,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  ShoppingCart,
+  CheckCircle,
+  Plus
 } from "lucide-react"
+import { useCart } from "@/contexts/cart-context"
+import { toast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/auth"
 
 interface Course {
   id: string
@@ -48,11 +55,14 @@ interface Course {
   level: string
   category: string
   enrolled: boolean
+  duration?: string
+  lectures?: number
 }
 
 export default function CoursesPage() {
   const router = useRouter()
   const { addToCart, isInCart, getCartItemCount } = useCart()
+  const { user, isAuthenticated, logout } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedLevel, setSelectedLevel] = useState("all")
@@ -169,10 +179,30 @@ export default function CoursesPage() {
                 </span>
               </div>
               <nav className="hidden md:flex items-center space-x-6">
-                <a href="/" className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">Home</a>
-                <a href="/courses" className="text-sm font-medium text-blue-600">Browse Courses</a>
-                <a href="#" className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">Categories</a>
-                <a href="#" className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors">Teach</a>
+                <Button 
+                  variant="ghost" 
+                  className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors p-0 h-auto"
+                  onClick={() => router.push('/')}
+                >
+                  Home
+                </Button>
+                <span className="text-sm font-medium text-blue-600">Browse Courses</span>
+                <Button 
+                  variant="ghost" 
+                  className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors p-0 h-auto"
+                  onClick={() => router.push('/categories')}
+                >
+                  Categories
+                </Button>
+                {isAuthenticated && user?.role === 'TRAINER' && (
+                  <Button 
+                    variant="ghost" 
+                    className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors p-0 h-auto"
+                    onClick={() => router.push('/instructor/create-course')}
+                  >
+                    Create Course
+                  </Button>
+                )}
               </nav>
             </div>
             <div className="flex items-center space-x-4">
@@ -186,10 +216,60 @@ export default function CoursesPage() {
                   Cart ({getCartItemCount()})
                 </Button>
               </div>
-              <Button variant="ghost" className="text-gray-700 hover:text-blue-600 hover:bg-blue-50">Log In</Button>
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white">
-                Sign Up
-              </Button>
+              {isAuthenticated ? (
+                <div className="flex items-center space-x-4">
+                  <Button 
+                    variant="ghost" 
+                    className="text-gray-700 hover:text-blue-600 hover:bg-blue-50"
+                    onClick={() => {
+                      switch (user?.role) {
+                        case 'ADMIN':
+                          router.push('/admin')
+                          break
+                        case 'TRAINER':
+                          router.push('/instructor')
+                          break
+                        case 'STUDENT':
+                        default:
+                          router.push('/learn')
+                          break
+                      }
+                    }}
+                  >
+                    Dashboard
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    className="text-gray-700 hover:text-blue-600 hover:bg-blue-50"
+                    onClick={() => router.push('/profile')}
+                  >
+                    {user?.name || user?.email}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="border-gray-200 text-gray-700 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                    onClick={logout}
+                  >
+                    Logout
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-4">
+                  <Button 
+                    variant="ghost" 
+                    className="text-gray-700 hover:text-blue-600 hover:bg-blue-50"
+                    onClick={() => router.push('/auth/login')}
+                  >
+                    Log In
+                  </Button>
+                  <Button 
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                    onClick={() => router.push('/auth/login')}
+                  >
+                    Sign Up
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -198,10 +278,14 @@ export default function CoursesPage() {
       {/* Page Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-12">
         <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl font-bold text-white mb-4">Explore Courses</h1>
+          <h1 className="text-4xl font-bold text-white mb-4">
+            {isAuthenticated ? `Welcome back, ${user?.name?.split(' ')[0]}!` : 'Explore Courses'}
+          </h1>
           <p className="text-xl text-white/90 max-w-2xl mx-auto">
-            Discover thousands of courses taught by expert instructors. 
-            Find the perfect course to advance your skills and career.
+            {isAuthenticated 
+              ? `Discover new courses to advance your ${user?.role === 'STUDENT' ? 'learning journey' : user?.role === 'TRAINER' ? 'teaching skills' : 'platform management'}.`
+              : 'Discover thousands of courses taught by expert instructors. Find the perfect course to advance your skills and career.'
+            }
           </p>
         </div>
       </div>

@@ -42,8 +42,8 @@ async function testRazorpayConnection(gateway: any) {
     await new Promise(resolve => setTimeout(resolve, 1000))
     
     return { success: true, message: 'Razorpay connection successful' }
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Unknown error' }
+  } catch (error) {
+    return { success: false, error: error.message }
   }
 }
 

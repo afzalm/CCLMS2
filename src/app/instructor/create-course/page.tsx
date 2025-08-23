@@ -278,11 +278,29 @@ export default function CreateCoursePage() {
       const result = await response.json()
 
       if (result.success) {
-        alert("Course published successfully!")
-        router.push("/instructor")
+        // Course created, now publish it
+        const publishResponse = await fetch('/api/courses/publish', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            courseId: result.data.courseId,
+            instructorId: user.id
+          }),
+        })
+
+        const publishResult = await publishResponse.json()
+
+        if (publishResult.success) {
+          alert("Course published successfully! It will now appear in the course listings.")
+          router.push("/instructor")
+        } else {
+          alert("Course created but failed to publish: " + publishResult.error)
+        }
       } else {
-        alert("Failed to publish course: " + result.error)
-        console.error("Publish error details:", result.details)
+        alert("Failed to create course: " + result.error)
+        console.error("Create error details:", result.details)
       }
     } catch (error) {
       console.error("Error publishing course:", error)

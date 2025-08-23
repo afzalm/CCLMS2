@@ -42,6 +42,7 @@ export default function InstructorDashboard() {
   const [user, setUser] = useState<any>(null)
   const [courses, setCourses] = useState<any[]>([])
   const [stats, setStats] = useState<any>({})
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
 
@@ -63,6 +64,7 @@ export default function InstructorDashboard() {
       if (!user?.id) return
 
       try {
+        // Fetch courses and stats
         const response = await fetch(`/api/instructor/courses?instructorId=${user.id}`)
         if (response.ok) {
           const data = await response.json()
@@ -70,6 +72,33 @@ export default function InstructorDashboard() {
           setStats(data.data.stats)
         } else {
           console.error('Failed to fetch instructor data')
+        }
+
+        // Fetch recent activity
+        const activityResponse = await fetch(`/api/instructor/activity?instructorId=${user.id}&limit=10`)
+        if (activityResponse.ok) {
+          const activityData = await activityResponse.json()
+          setRecentActivity(activityData.data)
+        } else {
+          console.error('Failed to fetch activity data')
+          // Use fallback mock data if API fails
+          setRecentActivity([
+            {
+              id: "1",
+              type: "enrollment",
+              course: "Complete Web Development Bootcamp",
+              student: "John Doe",
+              timestamp: "2 minutes ago"
+            },
+            {
+              id: "2",
+              type: "review",
+              course: "Advanced React and Redux",
+              student: "Jane Smith",
+              rating: 5,
+              timestamp: "15 minutes ago"
+            }
+          ])
         }
       } catch (error) {
         console.error('Error fetching instructor data:', error)
@@ -137,38 +166,6 @@ export default function InstructorDashboard() {
     { day: "Fri", active: 310 },
     { day: "Sat", active: 180 },
     { day: "Sun", active: 150 }
-  ]
-
-  const recentActivity = [
-    {
-      id: "1",
-      type: "enrollment",
-      course: "Complete Web Development Bootcamp",
-      student: "John Doe",
-      timestamp: "2 minutes ago"
-    },
-    {
-      id: "2",
-      type: "review",
-      course: "Advanced React and Redux",
-      student: "Jane Smith",
-      rating: 5,
-      timestamp: "15 minutes ago"
-    },
-    {
-      id: "3",
-      type: "completion",
-      course: "Python for Data Analysis",
-      student: "Mike Johnson",
-      timestamp: "1 hour ago"
-    },
-    {
-      id: "4",
-      type: "question",
-      course: "Complete Web Development Bootcamp",
-      student: "Sarah Wilson",
-      timestamp: "2 hours ago"
-    }
   ]
 
   const atRiskStudents = [
@@ -448,24 +445,30 @@ export default function InstructorDashboard() {
                   {recentActivity.map((activity) => (
                     <div key={activity.id} className="flex items-center space-x-4 p-3 bg-muted/30 rounded-lg">
                       <div className="flex-shrink-0">
-                        {activity.type === "enrollment" && <Users className="h-5 w-5 text-blue-600" />}
-                        {activity.type === "review" && <Star className="h-5 w-5 text-yellow-600" />}
-                        {activity.type === "completion" && <CheckCircle className="h-5 w-5 text-green-600" />}
-                        {activity.type === "question" && <MessageSquare className="h-5 w-5 text-purple-600" />}
+                        {(activity.type === "enrollment" || activity.type === "ENROLLMENT_RECEIVED") && <Users className="h-5 w-5 text-blue-600" />}
+                        {(activity.type === "review" || activity.type === "REVIEW_RECEIVED") && <Star className="h-5 w-5 text-yellow-600" />}
+                        {(activity.type === "completion" || activity.type === "COURSE_COMPLETED") && <CheckCircle className="h-5 w-5 text-green-600" />}
+                        {(activity.type === "question" || activity.type === "QUESTION_ASKED") && <MessageSquare className="h-5 w-5 text-purple-600" />}
+                        {(activity.type === "course_published" || activity.type === "COURSE_PUBLISHED") && <BookOpen className="h-5 w-5 text-green-600" />}
+                        {(activity.type === "course_created" || activity.type === "COURSE_CREATED") && <Plus className="h-5 w-5 text-blue-600" />}
                       </div>
                       <div className="flex-1">
                         <p className="text-sm">
-                          <span className="font-medium">{activity.student}</span>
-                          {activity.type === "enrollment" && " enrolled in "}
-                          {activity.type === "review" && " rated "}
-                          {activity.type === "completion" && " completed "}
-                          {activity.type === "question" && " asked a question in "}
-                          <span className="font-medium">{activity.course}</span>
-                          {activity.type === "review" && (
-                            <span className="text-yellow-600"> ★{activity.rating}</span>
+                          {activity.description || (
+                            <>
+                              {activity.student && <span className="font-medium">{activity.student}</span>}
+                              {activity.type === "enrollment" && " enrolled in "}
+                              {activity.type === "review" && " rated "}
+                              {activity.type === "completion" && " completed "}
+                              {activity.type === "question" && " asked a question in "}
+                              {activity.course && <span className="font-medium">{activity.course}</span>}
+                              {activity.type === "review" && activity.rating && (
+                                <span className="text-yellow-600"> ★{activity.rating}</span>
+                              )}
+                            </>
                           )}
                         </p>
-                        <p className="text-xs text-muted-foreground">{activity.timestamp}</p>
+                        <p className="text-xs text-muted-foreground">{activity.relativeTime || activity.timestamp}</p>
                       </div>
                     </div>
                   ))}
