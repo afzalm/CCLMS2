@@ -218,9 +218,53 @@ export default function LearnPage({ params }: { params: Promise<{ courseId: stri
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const markLessonComplete = () => {
+  const markLessonComplete = async () => {
     // In a real app, this would update the progress in the database
     console.log("Lesson marked as complete")
+    
+    // Get user from localStorage (in a real app, this would come from auth context)
+    const storedUser = localStorage.getItem('user')
+    if (!storedUser) {
+      console.error('User not found')
+      return
+    }
+    
+    const user = JSON.parse(storedUser)
+    
+    try {
+      // Update progress in database
+      const response = await fetch('/api/student/progress', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          lessonId: lessonId,
+          progressPercentage: 100,
+          completed: true,
+          watchTime: Math.floor(duration), // In a real app, this would be the actual watch time
+          lastPosition: Math.floor(duration)
+        })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to update progress')
+      }
+      
+      const data = await response.json()
+      console.log('Progress updated:', data)
+      
+      // If certificate was generated (course completed), show notification
+      if (data.data.certificate) {
+        alert('Congratulations! You have completed the course. Your certificate has been generated.')
+        // Optionally redirect to certificate page
+        // router.push(`/certificates/${data.data.certificate.certificateId}`)
+      }
+    } catch (error) {
+      console.error('Error updating progress:', error)
+      alert('Failed to update progress. Please try again.')
+    }
   }
 
   const navigateLesson = (direction: "prev" | "next") => {

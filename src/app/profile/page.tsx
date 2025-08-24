@@ -420,10 +420,11 @@ export default function ProfilePage() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             <Tabs defaultValue="profile" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="profile">Profile</TabsTrigger>
                 <TabsTrigger value="security">Security</TabsTrigger>
                 <TabsTrigger value="notifications">Notifications</TabsTrigger>
+                <TabsTrigger value="certificates">Certificates</TabsTrigger>
               </TabsList>
 
               {/* Profile Tab */}
@@ -770,6 +771,30 @@ export default function ProfilePage() {
                       <Button onClick={handleNotificationUpdate} disabled={isLoading}>
                         <Bell className="h-4 w-4 mr-2" />
                         {isLoading ? "Saving..." : "Save Preferences"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Certificates Tab */}
+              <TabsContent value="certificates">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>My Certificates</CardTitle>
+                    <CardDescription>
+                      View and manage all your course completion certificates.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-8">
+                      <Award className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-medium mb-2">Certificates</h3>
+                      <p className="text-muted-foreground mb-6">
+                        View all your course completion certificates in one place.
+                      </p>
+                      <Button onClick={() => router.push("/profile/certificates")}>
+                        View All Certificates
                       </Button>
                     </div>
                   </CardContent>

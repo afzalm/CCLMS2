@@ -44,6 +44,7 @@ model User {
   ticketMessages TicketMessage[] @relation("TicketMessagesSent")
   avatarFile  UploadedFile? @relation("UserAvatarFile", fields: [avatarFileId], references: [id])
   uploadedFiles UploadedFile[] @relation("FileUploader")
+  certificates Certificate[] // Reverse relation for certificates
 
   @@map("users")
 }
@@ -77,6 +78,7 @@ model Course {
   chapters    Chapter[]
   payments    Payment[]
   thumbnailFile UploadedFile? @relation("CourseThumbnailFile", fields: [thumbnailFileId], references: [id])
+  certificates Certificate[] // Reverse relation for certificates
 
   @@map("courses")
 }
@@ -400,6 +402,25 @@ model SupportTicket {
   messages    TicketMessage[]
 
   @@map("support_tickets")
+}
+
+model Certificate {
+  id              String     @id @default(cuid())
+  userId          String
+  courseId        String
+  certificateUrl  String     // URL to the PDF certificate
+  certificateId   String     @unique // Unique identifier for verification
+  issuedAt        DateTime   @default(now())
+  expiresAt       DateTime?  // Optional expiration date
+  revoked         Boolean    @default(false)
+  revokedAt       DateTime?
+  revocationReason String?
+
+  // Relations
+  user            User       @relation(fields: [userId], references: [id])
+  course          Course     @relation(fields: [courseId], references: [id])
+
+  @@map("certificates")
 }
 
 model TicketMessage {

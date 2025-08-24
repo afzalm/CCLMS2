@@ -21,7 +21,8 @@ import {
   Target,
   TrendingUp,
   Lock,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -49,6 +50,7 @@ export default function CourseOverviewPage({ params }: { params: Promise<{ cours
   const [isLoading, setIsLoading] = useState(true)
   const [authError, setAuthError] = useState<string | null>(null)
   const [enrollmentError, setEnrollmentError] = useState<string | null>(null)
+  const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false)
 
   // Unwrap the params Promise using React.use()
   const { courseId } = use(params)
@@ -285,6 +287,37 @@ export default function CourseOverviewPage({ params }: { params: Promise<{ cours
     }
   }
 
+  const handleGenerateCertificate = async () => {
+    if (!user || !enrollment) return
+
+    setIsGeneratingCertificate(true)
+    try {
+      const response = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          courseId: enrollment.courseId
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate certificate')
+      }
+
+      const data = await response.json()
+      // Redirect to certificate page
+      router.push(`/certificates/${data.data.certificateId}`)
+    } catch (error) {
+      console.error('Certificate generation error:', error)
+      alert('Failed to generate certificate. Please try again.')
+    } finally {
+      setIsGeneratingCertificate(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -384,9 +417,23 @@ export default function CourseOverviewPage({ params }: { params: Promise<{ cours
 
                 {course.progress === 100 && (
                   <div className="pt-4 border-t">
-                    <Button variant="outline" className="w-full">
-                      <Award className="h-4 w-4 mr-2" />
-                      Get Certificate
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={handleGenerateCertificate}
+                      disabled={isGeneratingCertificate}
+                    >
+                      {isGeneratingCertificate ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating Certificate...
+                        </>
+                      ) : (
+                        <>
+                          <Award className="h-4 w-4 mr-2" />
+                          Get Certificate
+                        </>
+                      )}
                     </Button>
                   </div>
                 )}
